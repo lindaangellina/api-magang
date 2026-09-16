@@ -78,10 +78,9 @@ export const buatJurnal = (req: Request<{}, {}, JurnalBody>, res: Response): voi
 };
 
 // PUT /api/jurnal/:id
-export const updateJurnal = (
-  req: Request<JurnalParams, {}, Partial<JurnalBody>>,
-  res: Response
-): void => {
+// Sama seperti updatePeserta — pakai Request polos karena digabung
+// dengan middleware validasiJurnal di route yang sama.
+export const updateJurnal = (req: Request, res: Response): void => {
   const id = Number(req.params.id);
   const index = dataJurnal.findIndex((j) => j.id === id);
 

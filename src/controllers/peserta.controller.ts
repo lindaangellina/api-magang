@@ -53,10 +53,11 @@ export const buatPeserta = (req: Request<{}, {}, PesertaBody>, res: Response): v
 };
 
 // PUT /api/peserta/:id
-export const updatePeserta = (
-  req: Request<PesertaParams, {}, Partial<PesertaBody>>,
-  res: Response
-): void => {
+// Catatan: sengaja pakai Request polos (bukan Request<PesertaParams, ...>)
+// karena route ini digabung dengan middleware validasiPeserta yang tidak
+// punya tipe params spesifik — kalau dipaksa strict, TypeScript bingung
+// nyamain tipe antar handler dan muncul error "No overload matches this call".
+export const updatePeserta = (req: Request, res: Response): void => {
   const id = Number(req.params.id);
   const index = dataPeserta.findIndex((p) => p.id === id);
 
