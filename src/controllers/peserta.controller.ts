@@ -1,85 +1,64 @@
 import { Request, Response } from "express";
 import { dataPeserta } from "../data/dummy";
-import { Peserta, PesertaParams, PesertaQuery, PesertaBody } from "../types";
+import { Peserta } from "../types";
+import { asyncHandler } from "../utils/asyncHandler";
+import { NotFoundError } from "../utils/AppError";
 
-// GET /api/peserta  (+ filter: sekolah, fase, limit)
-export const getSemuaPeserta = (
-  req: Request<{}, {}, {}, PesertaQuery>,
-  res: Response
-): void => {
-  const { sekolah, fase, limit } = req.query;
+export const getSemuaPeserta = asyncHandler(async (req: Request, res: Response) => {
+  const sekolah = req.query.sekolah as string | undefined;
+  const fase = req.query.fase as string | undefined;
+  const limit = req.query.limit as string | undefined;
+
   let hasil: Peserta[] = dataPeserta;
 
-  if (sekolah) {
-    hasil = hasil.filter((p) => p.sekolah === sekolah);
-  }
-  if (fase) {
-    hasil = hasil.filter((p) => p.fase === Number(fase));
-  }
-  if (limit) {
-    hasil = hasil.slice(0, Number(limit));
-  }
+  if (sekolah) hasil = hasil.filter((p) => p.sekolah === sekolah);
+  if (fase) hasil = hasil.filter((p) => p.fase === Number(fase));
+  if (limit) hasil = hasil.slice(0, Number(limit));
 
   res.json({ total: hasil.length, data: hasil });
-};
+});
 
-// GET /api/peserta/:id
-export const getPesertaById = (req: Request<PesertaParams>, res: Response): void => {
+export const getPesertaById = asyncHandler(async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const peserta = dataPeserta.find((p) => p.id === id);
 
   if (!peserta) {
-    res.status(404).json({ error: `Peserta dengan id ${id} tidak ditemukan` });
-    return;
+    throw new NotFoundError("Peserta");
   }
 
   res.json(peserta);
-};
+});
 
-// POST /api/peserta
-export const buatPeserta = (req: Request<{}, {}, PesertaBody>, res: Response): void => {
+export const buatPeserta = asyncHandler(async (req: Request, res: Response) => {
   const { nama, sekolah, fase } = req.body;
-
-  if (!nama || !sekolah) {
-    res.status(400).json({ error: "nama dan sekolah wajib diisi" });
-    return;
-  }
 
   const idBaru = dataPeserta.length > 0 ? Math.max(...dataPeserta.map((p) => p.id)) + 1 : 1;
   const baru: Peserta = { id: idBaru, nama, sekolah, fase: fase ?? 1 };
 
   dataPeserta.push(baru);
   res.status(201).json({ sukses: true, data: baru });
-};
+});
 
-// PUT /api/peserta/:id
-// Catatan: sengaja pakai Request polos (bukan Request<PesertaParams, ...>)
-// karena route ini digabung dengan middleware validasiPeserta yang tidak
-// punya tipe params spesifik — kalau dipaksa strict, TypeScript bingung
-// nyamain tipe antar handler dan muncul error "No overload matches this call".
-export const updatePeserta = (req: Request, res: Response): void => {
+export const updatePeserta = asyncHandler(async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const index = dataPeserta.findIndex((p) => p.id === id);
 
   if (index === -1) {
-    res.status(404).json({ error: `Peserta dengan id ${id} tidak ditemukan` });
-    return;
+    throw new NotFoundError("Peserta");
   }
 
   dataPeserta[index] = { ...dataPeserta[index], ...req.body };
   res.json({ sukses: true, data: dataPeserta[index] });
-};
+});
 
-// DELETE /api/peserta/:id
-export const hapusPeserta = (req: Request<PesertaParams>, res: Response): void => {
+export const hapusPeserta = asyncHandler(async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const index = dataPeserta.findIndex((p) => p.id === id);
 
   if (index === -1) {
-    res.status(404).json({ error: `Peserta dengan id ${id} tidak ditemukan` });
-    return;
+    throw new NotFoundError("Peserta");
   }
 
   dataPeserta.splice(index, 1);
   res.status(204).send();
-};
+});

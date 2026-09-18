@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { ValidationError } from "../utils/AppError";
 
 export function validasiPeserta(req: Request, res: Response, next: NextFunction): void {
   const { nama, sekolah } = req.body;
@@ -12,8 +13,7 @@ export function validasiPeserta(req: Request, res: Response, next: NextFunction)
   }
 
   if (errors.length > 0) {
-    res.status(400).json({ error: "Validasi gagal", detail: errors });
-    return; // jangan panggil next(), hentikan di sini
+    throw new ValidationError(errors);
   }
 
   next();
@@ -31,8 +31,7 @@ export function validasiJurnal(req: Request, res: Response, next: NextFunction):
   }
 
   if (errors.length > 0) {
-    res.status(400).json({ error: "Validasi gagal", detail: errors });
-    return;
+    throw new ValidationError(errors);
   }
 
   next();
