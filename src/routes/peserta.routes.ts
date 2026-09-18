@@ -1,7 +1,6 @@
 import { Router } from "express";
-import * as pesertaController from "../controllers/peserta.controller";
-import * as jurnalController from "../controllers/jurnal.controller";
-import { validasiPeserta } from "../middlewares/validasi.middleware";
+import { pesertaController } from "../controllers";
+import { validasiPeserta } from "../middlewares";
 
 const router = Router();
 
@@ -10,7 +9,6 @@ router.get("/:id", pesertaController.getPesertaById);
 router.post("/", validasiPeserta, pesertaController.buatPeserta);
 router.put("/:id", validasiPeserta, pesertaController.updatePeserta);
 router.delete("/:id", pesertaController.hapusPeserta);
-
-router.get("/:id/jurnal", jurnalController.getJurnalByPeserta);
+router.get("/:id/jurnal", pesertaController.getJurnalByPeserta);
 
 export default router;

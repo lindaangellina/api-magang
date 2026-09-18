@@ -8,8 +8,8 @@ export const dataPeserta: Peserta[] = [
 ];
 
 export const dataJurnal: Jurnal[] = [
-  { id: 1, pesertaId: 1, kegiatan: "Belajar Express routing", status: "selesai", tanggal: "2026-09-14" },
-  { id: 2, pesertaId: 1, kegiatan: "Latihan query params", status: "belum", tanggal: "2026-09-15" },
-  { id: 3, pesertaId: 2, kegiatan: "Setup project Express", status: "selesai", tanggal: "2026-09-14" },
-  { id: 4, pesertaId: 3, kegiatan: "Belajar controller pattern", status: "belum", tanggal: "2026-09-15" },
+  { id: 1, pesertaId: 1, kegiatan: "Belajar Express routing", status: "selesai", direview: true, tanggal: "2026-09-14" },
+  { id: 2, pesertaId: 1, kegiatan: "Latihan query params", status: "belum", direview: false, tanggal: "2026-09-15" },
+  { id: 3, pesertaId: 2, kegiatan: "Setup project Express", status: "selesai", direview: false, tanggal: "2026-09-14" },
+  { id: 4, pesertaId: 3, kegiatan: "Belajar controller pattern", status: "belum", direview: false, tanggal: "2026-09-15" },
 ];

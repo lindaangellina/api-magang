@@ -3,6 +3,7 @@ export interface Jurnal {
   pesertaId: number;
   kegiatan: string;
   status: "belum" | "selesai";
+  direview: boolean;
   tanggal: string;
 }
 

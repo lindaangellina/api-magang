@@ -1,12 +1,12 @@
 import { Router } from "express";
 import pesertaRoutes from "./peserta.routes";
 import jurnalRoutes from "./jurnal.routes";
-import testRoutes from "./test.routes";
+import statsRoutes from "./stats.routes";
 
 const router = Router();
 
 router.use("/peserta", pesertaRoutes);
 router.use("/jurnal", jurnalRoutes);
-router.use("/test", testRoutes);
+router.use("/stats", statsRoutes);
 
 export default router;

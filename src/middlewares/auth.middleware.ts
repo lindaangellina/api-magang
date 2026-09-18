@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
+import { config } from "../config/env.config";
+import { AppError, UnauthorizedError } from "../utils/AppError";
 
 export function cekApiKeyUntukDelete(req: Request, res: Response, next: NextFunction): void {
-  // Kalau bukan DELETE, langsung lewat tanpa pengecekan apapun
   if (req.method !== "DELETE") {
     next();
     return;
@@ -10,13 +11,11 @@ export function cekApiKeyUntukDelete(req: Request, res: Response, next: NextFunc
   const apiKey = req.headers["x-api-key"];
 
   if (!apiKey) {
-    res.status(401).json({ error: "API key tidak ditemukan" });
-    return;
+    throw new UnauthorizedError("API key tidak ditemukan");
   }
 
-  if (apiKey !== process.env.API_KEY) {
-    res.status(403).json({ error: "API key tidak valid" });
-    return;
+  if (apiKey !== config.security.apiKey) {
+    throw new AppError("API key tidak valid", 403);
   }
 
   next();
