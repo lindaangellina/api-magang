@@ -10,6 +10,8 @@
     "resolveJsonModule": true,
     "moduleResolution": "node",
     "types": ["node"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "sourceMap": true
   },
   "ts-node": {

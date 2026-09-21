@@ -22,6 +22,13 @@ export const config = {
   security: {
     apiKey: wajibAda("API_KEY"),
   },
+  db: {
+    host: opsional("DB_HOST", "localhost"),
+    port: Number(opsional("DB_PORT", "5432")),
+    name: wajibAda("DB_NAME"),
+    user: wajibAda("DB_USER"),
+    password: wajibAda("DB_PASSWORD"),
+  },
 } as const;
 
 export const isDev = config.app.env === "development";
