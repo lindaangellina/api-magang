@@ -1,0 +1,30 @@
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
+
+export type StatusPeserta = "aktif" | "lulus" | "berhenti";
+
+@Entity("peserta")
+export class Peserta {
+  @PrimaryGeneratedColumn()
+  id!: number;
+
+  @Column({ type: "varchar", length: 100 })
+  nama!: string;
+
+  @Column({ type: "varchar", length: 100 })
+  sekolah!: string;
+
+  @Column({ type: "varchar", length: 100, unique: true })
+  email!: string;
+
+  @Column({ type: "int", default: 1 })
+  fase!: number;
+
+  @Column({ type: "enum", enum: ["aktif", "lulus", "berhenti"], default: "aktif" })
+  status!: StatusPeserta;
+
+  @CreateDateColumn()
+  createdAt!: Date;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
+}
