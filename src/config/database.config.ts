@@ -4,6 +4,7 @@ import { config } from "./env.config";
 import { Peserta } from "../entities/Peserta.entity";
 import { JurnalHarian } from "../entities/Jurnal.entity";
 import { Mentor } from "../entities/Mentor.entity";
+import { Skill } from "../entities/Skill.entity";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -12,8 +13,8 @@ export const AppDataSource = new DataSource({
   username: config.db.user,
   password: config.db.password,
   database: config.db.name,
-  synchronize: false, // SEMENTARA true buat Soal 4 — nanti diubah balik ke false
+  synchronize: false, 
   logging: config.app.env === "development",
-  entities: [Peserta, JurnalHarian, Mentor],
+  entities: [Peserta, JurnalHarian, Mentor, Skill],
   migrations: ["src/migrations/**/*.ts"],
 });

@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from "typeorm";
+import { JurnalHarian } from "./Jurnal.entity";
 
 @Entity("mentor")
 export class Mentor {
@@ -19,4 +20,8 @@ export class Mentor {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  // relasi baru — satu mentor mereview banyak jurnal
+  @OneToMany(() => JurnalHarian, (jurnal) => jurnal.reviewer)
+  jurnalReview!: JurnalHarian[];
 }
