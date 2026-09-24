@@ -16,6 +16,9 @@ export class Peserta {
   @Column({ type: "varchar", length: 100, unique: true })
   email!: string;
 
+  @Column({ type: "varchar", nullable: true })
+  telepon?: string;
+
   @Column({ type: "int", default: 1 })
   fase!: number;
 
