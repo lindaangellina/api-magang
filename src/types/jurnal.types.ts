@@ -1,10 +1,12 @@
+export type StatusReview = "belum" | "sudah";
+
 export interface Jurnal {
   id: number;
   pesertaId: number;
   kegiatan: string;
-  status: "belum" | "selesai";
-  direview: boolean;
-  tanggal: string;
+  hambatan?: string;
+  linkCommit?: string;
+  statusReview: StatusReview;
 }
 
 export interface JurnalParams {
@@ -19,5 +21,7 @@ export interface JurnalQuery {
 export interface JurnalBody {
   pesertaId: number;
   kegiatan: string;
-  status?: "belum" | "selesai";
+  hambatan?: string;
+  linkCommit?: string;
+  statusReview?: StatusReview;
 }

@@ -1,53 +1,70 @@
-import { jurnalRepository, pesertaRepository } from "../repositories";
-import { Jurnal, JurnalBody } from "../types";
+import { AppDataSource } from "../config/database.config";
+import { JurnalHarian } from "../entities/Jurnal.entity";
+import { Peserta } from "../entities/Peserta.entity";
+import { JurnalBody, StatusReview } from "../types";
 import { NotFoundError } from "../utils/AppError";
 
-export function getSemuaJurnal(filter: { peserta?: string; status?: string }): Jurnal[] {
-  let hasil = jurnalRepository.findAll();
+const jurnalRepo = AppDataSource.getRepository(JurnalHarian);
+const pesertaRepo = AppDataSource.getRepository(Peserta);
 
-  if (filter.peserta) hasil = hasil.filter((j) => j.pesertaId === Number(filter.peserta));
-  if (filter.status) hasil = hasil.filter((j) => j.status === filter.status);
-
-  return hasil;
+export async function getSemuaJurnal(filter: {
+  peserta?: string;
+  status?: string;
+}): Promise<JurnalHarian[]> {
+  return jurnalRepo.find({
+    where: {
+      ...(filter.peserta && { pesertaId: Number(filter.peserta) }),
+      ...(filter.status && { statusReview: filter.status as StatusReview }),
+    },
+  });
 }
 
-export function getJurnalById(id: number): Jurnal {
-  const jurnal = jurnalRepository.findById(id);
+export async function getJurnalById(id: number): Promise<JurnalHarian> {
+  const jurnal = await jurnalRepo.findOneBy({ id });
   if (!jurnal) throw new NotFoundError("Jurnal");
   return jurnal;
 }
 
-export function getJurnalByPeserta(pesertaId: number): { peserta: string; jurnal: Jurnal[] } {
-  const peserta = pesertaRepository.findById(pesertaId);
+// pakai relasi One-to-Many, bukan filter manual
+export async function getJurnalByPeserta(pesertaId: number): Promise<{ peserta: string; jurnal: JurnalHarian[] }> {
+  const peserta = await pesertaRepo.findOne({
+    where: { id: pesertaId },
+    relations: { jurnalList: true },
+  });
+
   if (!peserta) throw new NotFoundError("Peserta");
-  return { peserta: peserta.nama, jurnal: jurnalRepository.findByPesertaId(pesertaId) };
+
+  return { peserta: peserta.nama, jurnal: peserta.jurnalList };
 }
 
-export function buatJurnal(body: JurnalBody): Jurnal {
-  const baru: Jurnal = {
-    id: jurnalRepository.nextId(),
+export async function buatJurnal(body: JurnalBody): Promise<JurnalHarian> {
+  const baru = jurnalRepo.create({
     pesertaId: body.pesertaId,
     kegiatan: body.kegiatan,
-    status: body.status ?? "belum",
-    direview: false,
-    tanggal: new Date().toISOString().split("T")[0],
-  };
-  return jurnalRepository.create(baru);
+    hambatan: body.hambatan,
+    linkCommit: body.linkCommit,
+    statusReview: body.statusReview ?? "belum",
+  });
+  return jurnalRepo.save(baru);
 }
 
-export function updateJurnal(id: number, perubahan: Partial<JurnalBody>): Jurnal {
-  const hasil = jurnalRepository.update(id, perubahan);
-  if (!hasil) throw new NotFoundError("Jurnal");
-  return hasil;
+export async function updateJurnal(id: number, perubahan: Partial<JurnalBody>): Promise<JurnalHarian> {
+  const jurnal = await jurnalRepo.findOneBy({ id });
+  if (!jurnal) throw new NotFoundError("Jurnal");
+
+  jurnalRepo.merge(jurnal, perubahan);
+  return jurnalRepo.save(jurnal);
 }
 
-export function updateStatusReview(id: number, direview: boolean): Jurnal {
-  const hasil = jurnalRepository.update(id, { direview });
-  if (!hasil) throw new NotFoundError("Jurnal");
-  return hasil;
+export async function updateStatusReview(id: number, statusReview: StatusReview): Promise<JurnalHarian> {
+  const jurnal = await jurnalRepo.findOneBy({ id });
+  if (!jurnal) throw new NotFoundError("Jurnal");
+
+  jurnal.statusReview = statusReview;
+  return jurnalRepo.save(jurnal);
 }
 
-export function hapusJurnal(id: number): void {
-  const berhasil = jurnalRepository.delete(id);
-  if (!berhasil) throw new NotFoundError("Jurnal");
+export async function hapusJurnal(id: number): Promise<void> {
+  const hasil = await jurnalRepo.delete({ id });
+  if (hasil.affected === 0) throw new NotFoundError("Jurnal");
 }

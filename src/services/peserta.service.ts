@@ -1,40 +1,47 @@
-import { pesertaRepository } from "../repositories";
-import { Peserta, PesertaBody } from "../types";
-import { NotFoundError } from "../utils/AppError";
+import { AppDataSource } from "../config/database.config";
+import { Peserta } from "../entities/Peserta.entity";
+import { PesertaBody } from "../types";
+import { NotFoundError, ConflictError } from "../utils/AppError";
 
-export function getSemuaPeserta(filter: { sekolah?: string; fase?: string; limit?: string }): Peserta[] {
-  let hasil = pesertaRepository.findAll();
+const repo = AppDataSource.getRepository(Peserta);
 
-  if (filter.sekolah) hasil = hasil.filter((p) => p.sekolah === filter.sekolah);
-  if (filter.fase) hasil = hasil.filter((p) => p.fase === Number(filter.fase));
-  if (filter.limit) hasil = hasil.slice(0, Number(filter.limit));
-
-  return hasil;
+export async function getSemuaPeserta(filter: {
+  sekolah?: string;
+  fase?: string;
+  limit?: string;
+}): Promise<Peserta[]> {
+  return repo.find({
+    where: {
+      ...(filter.sekolah && { sekolah: filter.sekolah }),
+      ...(filter.fase && { fase: Number(filter.fase) }),
+    },
+    ...(filter.limit && { take: Number(filter.limit) }),
+  });
 }
 
-export function getPesertaById(id: number): Peserta {
-  const peserta = pesertaRepository.findById(id);
+export async function getPesertaById(id: number): Promise<Peserta> {
+  const peserta = await repo.findOneBy({ id });
   if (!peserta) throw new NotFoundError("Peserta");
   return peserta;
 }
 
-export function buatPeserta(body: PesertaBody): Peserta {
-  const baru: Peserta = {
-    id: pesertaRepository.nextId(),
-    nama: body.nama,
-    sekolah: body.sekolah,
-    fase: body.fase ?? 1,
-  };
-  return pesertaRepository.create(baru);
+export async function buatPeserta(body: PesertaBody): Promise<Peserta> {
+  const emailSudahAda = await repo.findOneBy({ email: body.email });
+  if (emailSudahAda) throw new ConflictError("Email sudah terdaftar");
+
+  const baru = repo.create(body);
+  return repo.save(baru);
 }
 
-export function updatePeserta(id: number, perubahan: Partial<PesertaBody>): Peserta {
-  const hasil = pesertaRepository.update(id, perubahan);
-  if (!hasil) throw new NotFoundError("Peserta");
-  return hasil;
+export async function updatePeserta(id: number, perubahan: Partial<PesertaBody>): Promise<Peserta> {
+  const peserta = await repo.findOneBy({ id });
+  if (!peserta) throw new NotFoundError("Peserta");
+
+  repo.merge(peserta, perubahan);
+  return repo.save(peserta);
 }
 
-export function hapusPeserta(id: number): void {
-  const berhasil = pesertaRepository.delete(id);
-  if (!berhasil) throw new NotFoundError("Peserta");
+export async function hapusPeserta(id: number): Promise<void> {
+  const hasil = await repo.delete({ id });
+  if (hasil.affected === 0) throw new NotFoundError("Peserta");
 }

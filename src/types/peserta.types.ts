@@ -2,11 +2,14 @@ export interface Peserta {
   id: number;
   nama: string;
   sekolah: string;
+  email: string;
+  telepon?: string;
   fase: number;
+  status: "aktif" | "lulus" | "berhenti";
 }
 
 export interface PesertaParams {
-  id: string; // route params selalu string
+  id: string;
 }
 
 export interface PesertaQuery {
@@ -18,5 +21,8 @@ export interface PesertaQuery {
 export interface PesertaBody {
   nama: string;
   sekolah: string;
-  fase: number;
+  email: string;
+  telepon?: string;
+  fase?: number;
+  status?: "aktif" | "lulus" | "berhenti";
 }

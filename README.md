@@ -37,7 +37,51 @@ Buat database terlebih dahulu lewat `psql`:
 CREATE DATABASE magang_db;
 \`\`\`
 
-Project ini menggunakan `synchronize: false` — perubahan struktur tabel dilakukan lewat Migration (belum diterapkan di Minggu 10, akan disambungkan penuh mulai Minggu 11).
+Project ini menggunakan `synchronize: false` — semua perubahan struktur tabel (skema) dilakukan lewat Migration, bukan otomatis. Migration harus dijalankan setelah database dibuat (lihat langkah "Setup Database dari Nol" di bawah).
+
+## Setup Database dari Nol
+
+Langkah lengkap menyiapkan database setelah clone repo (misal di komputer baru atau anggota tim baru):
+
+1. **Clone repo dan install dependencies**
+   \`\`\`bash
+   git clone <url-repo>
+   cd api-magang
+   npm install
+   \`\`\`
+
+2. **Siapkan file `.env`**
+   Salin `.env.example` menjadi `.env`, lalu isi kredensial database sesuai PostgreSQL di komputer masing-masing.
+
+3. **Buat database kosong**
+   \`\`\`bash
+   psql -U postgres
+   CREATE DATABASE magang_db;
+   \q
+   \`\`\`
+
+4. **Jalankan semua migration**
+   \`\`\`bash
+   npm run migration:run
+   \`\`\`
+   Ini otomatis membuat seluruh tabel (`peserta`, `jurnal_harian`, `mentor`, `skill`, `peserta_skill`) beserta relasi dan foreign key-nya, sesuai urutan migration yang sudah dibuat — tanpa perlu `synchronize: true`.
+
+5. **Jalankan server**
+   \`\`\`bash
+   npm run dev
+   \`\`\`
+   Jika berhasil, muncul log `Database terhubung` dan `Server berjalan di http://localhost:3000`.
+
+6. **Verifikasi data persisten**
+   \`\`\`bash
+   curl http://localhost:3000/api/peserta
+   \`\`\`
+   Data akan tetap tersimpan meskipun server atau PostgreSQL di-restart, karena semua data ada di database — berbeda dari Minggu 9-10 yang datanya disimpan di array memori dan hilang setiap restart.
+
+### Perintah migration yang sering dipakai
+- `npm run migration:run` — jalankan migration yang belum dieksekusi
+- `npm run migration:revert` — batalkan migration terakhir yang dijalankan
+- `npm run migration:generate -- src/migrations/NamaMigration` — buat migration baru setelah entity diubah
 
 ## Daftar Endpoint
 
@@ -50,7 +94,7 @@ Project ini menggunakan `synchronize: false` — perubahan struktur tabel dilaku
 | POST | /api/peserta | Tambah peserta baru |
 | PUT | /api/peserta/:id | Update peserta |
 | DELETE | /api/peserta/:id | Hapus peserta (perlu header `x-api-key`) |
-| GET | /api/peserta/:id/jurnal | Semua jurnal milik peserta tertentu |
+| GET | /api/peserta/:id/jurnal | Semua jurnal milik peserta tertentu (relasi One-to-Many) |
 
 ### Jurnal
 
@@ -60,21 +104,21 @@ Project ini menggunakan `synchronize: false` — perubahan struktur tabel dilaku
 | GET | /api/jurnal/:id | Detail satu jurnal |
 | POST | /api/jurnal | Tambah jurnal baru |
 | PUT | /api/jurnal/:id | Update jurnal |
-| PATCH | /api/jurnal/:id/review | Ubah status review, body `{"direview": true}` |
+| PATCH | /api/jurnal/:id/review | Ubah status review, body `{"statusReview": "sudah"}` |
 | DELETE | /api/jurnal/:id | Hapus jurnal (perlu header `x-api-key`) |
 
 ### Statistik
 
 | Method | Endpoint | Keterangan |
 |---|---|---|
-| GET | /api/stats | Total peserta, total jurnal, jurnal belum direview, rata-rata jurnal per peserta |
+| GET | /api/stats | Total peserta, total jurnal, jurnal belum direview, rata-rata jurnal per peserta, jumlah jurnal per peserta (QueryBuilder + GROUP BY), skill terpopuler (relasi Many-to-Many) |
 
 ## Contoh Request
 
 \`\`\`bash
 curl -X POST http://localhost:3000/api/peserta \\
   -H "Content-Type: application/json" \\
-  -d '{"nama":"Rani","sekolah":"SMK1","fase":1}'
+  -d '{"nama":"Rani","sekolah":"SMK1","email":"rani@mail.com","fase":1}'
 \`\`\`
 
 ## Format Response
@@ -110,10 +154,11 @@ ORM yang akan menerjemahkan kode itu menjadi SQL di belakang layar.
 3. Kode jadi lebih konsisten dengan pola yang sudah dipakai sejak Minggu 5 dan 10 (Repository pattern), sehingga struktur project tidak berubah drastis walau sumber datanya berganti dari memori ke database sungguhan.
 4. Perubahan struktur tabel bisa dicatat rapi lewat Migration, sehingga tim bisa kerja bareng di database yang sama tanpa saling menimpa perubahan orang lain.
 
- ## Catatan:
-  Fungsi Tabel migrations Tabel `migrations` adalah "buku catatan" milik TypeORM yang menyimpan daftar migration apa saja yang SUDAH pernah dijalankan ke database ini, lengkap dengan timestamp dan namanya. 
- 
- Fungsinya: 
- 1. Supaya TypeORM tahu migration mana yang sudah dijalankan dan mana yang belum, sehingga saat `migration:run` dipanggil, migration yang sudah ada di tabel ini TIDAK dijalankan ulang (mencegah error karena tabel/kolom sudah ada).
- 2. Menjadi acuan urutan untuk `migration:revert` — TypeORM tahu migration mana yang PALING TERAKHIR dijalankan, sehingga revert selalu membatalkan yang paling baru dulu, bukan sembarangan.
- 3. Kalau bekerja dalam tim, setiap anggota bisa menjalankan migration yang sama di database masing-masing, dan tabel ini memastikan semua orang "sinkron" mengenai versi skema database yang sedang dipakai.
+## Catatan: Fungsi Tabel migrations
+
+Tabel `migrations` adalah "buku catatan" milik TypeORM yang menyimpan daftar migration apa saja yang SUDAH pernah dijalankan ke database ini, lengkap dengan timestamp dan namanya.
+
+Fungsinya:
+1. Supaya TypeORM tahu migration mana yang sudah dijalankan dan mana yang belum, sehingga saat `migration:run` dipanggil, migration yang sudah ada di tabel ini TIDAK dijalankan ulang (mencegah error karena tabel/kolom sudah ada).
+2. Menjadi acuan urutan untuk `migration:revert` — TypeORM tahu migration mana yang PALING TERAKHIR dijalankan, sehingga revert selalu membatalkan yang paling baru dulu, bukan sembarangan.
+3. Kalau bekerja dalam tim, setiap anggota bisa menjalankan migration yang sama di database masing-masing, dan tabel ini memastikan semua orang "sinkron" mengenai versi skema database yang sedang dipakai.
