@@ -3,6 +3,7 @@ import { JurnalHarian } from "./Jurnal.entity";
 import { Skill } from "./Skill.entity";
 
 export type StatusPeserta = "aktif" | "lulus" | "berhenti";
+export type RolePeserta = "peserta" | "mentor";
 
 @Entity("peserta")
 export class Peserta {
@@ -26,6 +27,12 @@ export class Peserta {
 
   @Column({ type: "enum", enum: ["aktif", "lulus", "berhenti"], default: "aktif" })
   status!: StatusPeserta;
+
+  @Column({ type: "varchar", default: "" })
+  password!: string; // sementara default kosong, nanti diisi lewat endpoint register (Selasa)
+
+  @Column({ type: "varchar", default: "peserta" })
+  role!: RolePeserta;
 
   @CreateDateColumn()
   createdAt!: Date;
