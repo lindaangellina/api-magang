@@ -19,9 +19,6 @@ export const config = {
     port: Number(opsional("PORT", "3000")),
     env: opsional("NODE_ENV", "development"),
   },
-  security: {
-    apiKey: wajibAda("API_KEY"),
-  },
   db: {
     host: opsional("DB_HOST", "localhost"),
     port: Number(opsional("DB_PORT", "5432")),

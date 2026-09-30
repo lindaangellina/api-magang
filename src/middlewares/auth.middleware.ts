@@ -1,22 +1,29 @@
 import { Request, Response, NextFunction } from "express";
-import { config } from "../config/env.config";
-import { AppError, UnauthorizedError } from "../utils/AppError";
+import { verifikasiToken, JwtPayload } from "../utils/jwt";
+import { UnauthorizedError } from "../utils/AppError";
 
-export function cekApiKeyUntukDelete(req: Request, res: Response, next: NextFunction): void {
-  if (req.method !== "DELETE") {
+declare global {
+  namespace Express {
+    interface Request {
+      user?: JwtPayload;
+    }
+  }
+}
+
+export function authGuard(req: Request, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new UnauthorizedError("Token tidak ditemukan");
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const payload = verifikasiToken(token);
+    req.user = payload;
     next();
-    return;
+  } catch (err) {
+    throw new UnauthorizedError("Token tidak valid atau sudah kedaluwarsa");
   }
-
-  const apiKey = req.headers["x-api-key"];
-
-  if (!apiKey) {
-    throw new UnauthorizedError("API key tidak ditemukan");
-  }
-
-  if (apiKey !== config.security.apiKey) {
-    throw new AppError("API key tidak valid", 403);
-  }
-
-  next();
 }

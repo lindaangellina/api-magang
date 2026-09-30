@@ -4,7 +4,6 @@ import {
   requestLogger,
   tambahRequestId,
   rateLimiter,
-  cekApiKeyUntukDelete,
   errorHandler,
   notFoundHandler,
 } from "./middlewares";
@@ -15,7 +14,6 @@ app.use(requestLogger);
 app.use(tambahRequestId);
 app.use(express.json());
 app.use(rateLimiter);
-app.use(cekApiKeyUntukDelete);
 
 app.use("/api", routes);
 

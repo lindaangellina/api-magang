@@ -37,6 +37,13 @@ export async function getJurnalByPeserta(pesertaId: number): Promise<{ peserta: 
   return { peserta: peserta.nama, jurnal: peserta.jurnalList };
 }
 
+// khusus untuk endpoint /jurnal/saya — hanya milik user yang login
+export async function getJurnalSaya(pesertaId: number): Promise<JurnalHarian[]> {
+  return jurnalRepo.find({
+    where: { pesertaId },
+  });
+}
+
 export async function buatJurnal(body: JurnalBody): Promise<JurnalHarian> {
   const baru = jurnalRepo.create({
     pesertaId: body.pesertaId,

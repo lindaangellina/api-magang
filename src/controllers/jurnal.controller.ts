@@ -34,3 +34,9 @@ export const hapusJurnal = asyncHandler(async (req: Request, res: Response) => {
   await jurnalService.hapusJurnal(Number(req.params.id));
   res.status(204).send();
 });
+
+export const getJurnalSaya = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const hasil = await jurnalService.getJurnalSaya(userId);
+  suksesDenganTotal(res, hasil, "Jurnal milik saya berhasil diambil");
+});
