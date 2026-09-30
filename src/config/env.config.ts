@@ -29,6 +29,10 @@ export const config = {
     user: wajibAda("DB_USER"),
     password: wajibAda("DB_PASSWORD"),
   },
+  jwt: {
+    secret: wajibAda("JWT_SECRET"),
+    expiresIn: opsional("JWT_EXPIRES_IN", "1h"),
+  },
 } as const;
 
 export const isDev = config.app.env === "development";
