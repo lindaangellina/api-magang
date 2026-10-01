@@ -3,7 +3,6 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sukses, suksesDenganTotal, dibuat } from "../utils/response";
 import { pesertaService, jurnalService } from "../services";
 import { tanpaPassword } from "../utils/password";
-import { UnauthorizedError } from "../utils/AppError";
 
 export const getSemuaPeserta = asyncHandler(async (req: Request, res: Response) => {
   const { sekolah, fase, limit } = req.query as { sekolah?: string; fase?: string; limit?: string };
@@ -22,24 +21,12 @@ export const buatPeserta = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updatePeserta = asyncHandler(async (req: Request, res: Response) => {
-  const targetId = Number(req.params.id);
-
-  if (req.user!.id !== targetId) {
-    throw new UnauthorizedError("Anda tidak berhak mengubah data peserta lain");
-  }
-
-  const hasil = await pesertaService.updatePeserta(targetId, req.body);
+  const hasil = await pesertaService.updatePeserta(Number(req.params.id), req.body);
   sukses(res, tanpaPassword(hasil), "Peserta berhasil diupdate");
 });
 
 export const hapusPeserta = asyncHandler(async (req: Request, res: Response) => {
-  const targetId = Number(req.params.id);
-
-  if (req.user!.id !== targetId) {
-    throw new UnauthorizedError("Anda tidak berhak menghapus data peserta lain");
-  }
-
-  await pesertaService.hapusPeserta(targetId);
+  await pesertaService.hapusPeserta(Number(req.params.id));
   res.status(204).send();
 });
 

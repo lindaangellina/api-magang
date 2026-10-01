@@ -2,7 +2,7 @@ import { AppDataSource } from "../config/database.config";
 import { JurnalHarian } from "../entities/Jurnal.entity";
 import { Peserta } from "../entities/Peserta.entity";
 import { JurnalBody, StatusReview } from "../types";
-import { NotFoundError } from "../utils/AppError";
+import { NotFoundError, UnauthorizedError } from "../utils/AppError";
 
 const jurnalRepo = AppDataSource.getRepository(JurnalHarian);
 const pesertaRepo = AppDataSource.getRepository(Peserta);
@@ -25,7 +25,6 @@ export async function getJurnalById(id: number): Promise<JurnalHarian> {
   return jurnal;
 }
 
-// pakai relasi One-to-Many, bukan filter manual
 export async function getJurnalByPeserta(pesertaId: number): Promise<{ peserta: string; jurnal: JurnalHarian[] }> {
   const peserta = await pesertaRepo.findOne({
     where: { id: pesertaId },
@@ -37,7 +36,6 @@ export async function getJurnalByPeserta(pesertaId: number): Promise<{ peserta: 
   return { peserta: peserta.nama, jurnal: peserta.jurnalList };
 }
 
-// khusus untuk endpoint /jurnal/saya — hanya milik user yang login
 export async function getJurnalSaya(pesertaId: number): Promise<JurnalHarian[]> {
   return jurnalRepo.find({
     where: { pesertaId },
@@ -55,9 +53,20 @@ export async function buatJurnal(body: JurnalBody): Promise<JurnalHarian> {
   return jurnalRepo.save(baru);
 }
 
-export async function updateJurnal(id: number, perubahan: Partial<JurnalBody>): Promise<JurnalHarian> {
+// sekarang menerima userId & role, untuk ownership check
+export async function updateJurnal(
+  id: number,
+  userId: number,
+  role: "peserta" | "mentor",
+  perubahan: Partial<JurnalBody>
+): Promise<JurnalHarian> {
   const jurnal = await jurnalRepo.findOneBy({ id });
   if (!jurnal) throw new NotFoundError("Jurnal");
+
+  // mentor boleh edit jurnal siapapun; peserta hanya boleh edit miliknya sendiri
+  if (role !== "mentor" && jurnal.pesertaId !== userId) {
+    throw new UnauthorizedError("Kamu tidak berhak mengubah jurnal ini");
+  }
 
   jurnalRepo.merge(jurnal, perubahan);
   return jurnalRepo.save(jurnal);

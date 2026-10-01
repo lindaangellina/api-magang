@@ -20,7 +20,12 @@ export const buatJurnal = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateJurnal = asyncHandler(async (req: Request, res: Response) => {
-  const hasil = await jurnalService.updateJurnal(Number(req.params.id), req.body);
+  const hasil = await jurnalService.updateJurnal(
+    Number(req.params.id),
+    req.user!.id,
+    req.user!.role,
+    req.body
+  );
   sukses(res, hasil, "Jurnal berhasil diupdate");
 });
 
