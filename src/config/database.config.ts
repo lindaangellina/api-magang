@@ -5,6 +5,7 @@ import { Peserta } from "../entities/Peserta.entity";
 import { JurnalHarian } from "../entities/Jurnal.entity";
 import { Mentor } from "../entities/Mentor.entity";
 import { Skill } from "../entities/Skill.entity";
+import { RefreshToken } from "../entities/RefreshToken.entity";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -13,8 +14,8 @@ export const AppDataSource = new DataSource({
   username: config.db.user,
   password: config.db.password,
   database: config.db.name,
-  synchronize: false, 
+  synchronize: false,
   logging: config.app.env === "development",
-  entities: [Peserta, JurnalHarian, Mentor, Skill],
+  entities: [Peserta, JurnalHarian, Mentor, Skill, RefreshToken],
   migrations: ["src/migrations/**/*.ts"],
 });

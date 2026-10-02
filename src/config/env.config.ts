@@ -28,7 +28,9 @@ export const config = {
   },
   jwt: {
     secret: wajibAda("JWT_SECRET"),
-    expiresIn: opsional("JWT_EXPIRES_IN", "1h"),
+    expiresIn: opsional("JWT_EXPIRES_IN", "15m"),
+    refreshSecret: wajibAda("JWT_REFRESH_SECRET"),
+    refreshExpiresIn: opsional("JWT_REFRESH_EXPIRES_IN", "7d"),
   },
 } as const;
 

@@ -1,6 +1,6 @@
 # API Magang Batch 4
 
-API untuk mengelola data peserta magang dan jurnal harian, dibangun dengan Express + TypeScript, terhubung ke database PostgreSQL lewat TypeORM.
+API untuk mengelola data peserta magang dan jurnal harian, dibangun dengan Express + TypeScript, terhubung ke database PostgreSQL lewat TypeORM, dengan autentikasi JWT (access token + refresh token) dan role-based access control.
 
 ## Menjalankan Project
 
@@ -21,12 +21,20 @@ Salin `.env.example` menjadi `.env`, lalu isi:
 NODE_ENV=development
 PORT=3000
 APP_NAME=API Magang Batch 4
-API_KEY=
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=magang_db
 DB_USER=postgres
 DB_PASSWORD=
+JWT_SECRET=
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_SECRET=
+JWT_REFRESH_EXPIRES_IN=7d
+\`\`\`
+
+`JWT_SECRET` dan `JWT_REFRESH_SECRET` harus string acak yang panjang dan **berbeda satu sama lain**. Generate dengan:
+\`\`\`bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 \`\`\`
 
 ## Database
@@ -51,7 +59,7 @@ Langkah lengkap menyiapkan database setelah clone repo (misal di komputer baru a
    \`\`\`
 
 2. **Siapkan file `.env`**
-   Salin `.env.example` menjadi `.env`, lalu isi kredensial database sesuai PostgreSQL di komputer masing-masing.
+   Salin `.env.example` menjadi `.env`, lalu isi kredensial database dan JWT secret sesuai komputer masing-masing.
 
 3. **Buat database kosong**
    \`\`\`bash
@@ -64,7 +72,7 @@ Langkah lengkap menyiapkan database setelah clone repo (misal di komputer baru a
    \`\`\`bash
    npm run migration:run
    \`\`\`
-   Ini otomatis membuat seluruh tabel (`peserta`, `jurnal_harian`, `mentor`, `skill`, `peserta_skill`) beserta relasi dan foreign key-nya, sesuai urutan migration yang sudah dibuat — tanpa perlu `synchronize: true`.
+   Ini otomatis membuat seluruh tabel (`peserta`, `jurnal_harian`, `mentor`, `skill`, `peserta_skill`, `refresh_token`) beserta relasi dan foreign key-nya, sesuai urutan migration yang sudah dibuat — tanpa perlu `synchronize: true`.
 
 5. **Jalankan server**
    \`\`\`bash
@@ -76,42 +84,129 @@ Langkah lengkap menyiapkan database setelah clone repo (misal di komputer baru a
    \`\`\`bash
    curl http://localhost:3000/api/peserta
    \`\`\`
-   Data akan tetap tersimpan meskipun server atau PostgreSQL di-restart, karena semua data ada di database — berbeda dari Minggu 9-10 yang datanya disimpan di array memori dan hilang setiap restart.
+   Data akan tetap tersimpan meskipun server atau PostgreSQL di-restart, karena semua data ada di database.
 
 ### Perintah migration yang sering dipakai
 - `npm run migration:run` — jalankan migration yang belum dieksekusi
 - `npm run migration:revert` — batalkan migration terakhir yang dijalankan
 - `npm run migration:generate -- src/migrations/NamaMigration` — buat migration baru setelah entity diubah
 
+## Autentikasi
+
+API ini memakai JWT dengan dua jenis token:
+- **Access token** — umur pendek (15 menit), dikirim di header `Authorization: Bearer <token>` untuk tiap request ke endpoint yang terproteksi.
+- **Refresh token** — umur panjang (7 hari), disimpan di database (tabel `refresh_token`) sehingga bisa dicabut manual saat logout. Dipakai khusus untuk menukar access token baru tanpa perlu login ulang.
+
+Setelah login gagal karena access token kedaluwarsa (401), client cukup memanggil `/api/auth/refresh` dengan refresh token untuk mendapat access token baru, tanpa perlu mengisi ulang email/password.
+
+### Endpoint Auth
+
+| Method | Endpoint | Keterangan | Butuh Token? |
+|---|---|---|---|
+| POST | /api/auth/register | Daftar peserta baru | Tidak |
+| POST | /api/auth/login | Login, dapat accessToken + refreshToken | Tidak |
+| POST | /api/auth/refresh | Tukar refreshToken dengan accessToken baru | Tidak (pakai refreshToken di body) |
+| POST | /api/auth/logout | Hapus refreshToken dari database | Tidak (pakai refreshToken di body) |
+
+**Register**
+\`\`\`bash
+curl -X POST http://localhost:3000/api/auth/register \\
+  -H "Content-Type: application/json" \\
+  -d '{"nama":"Rani","sekolah":"SMK1","email":"rani@mail.com","password":"password123"}'
+\`\`\`
+Response (201):
+\`\`\`json
+{
+  "sukses": true,
+  "pesan": "Registrasi berhasil",
+  "data": { "id": 7, "nama": "Rani", "sekolah": "SMK1", "email": "rani@mail.com", "role": "peserta", "...": "..." }
+}
+\`\`\`
+
+**Login**
+\`\`\`bash
+curl -X POST http://localhost:3000/api/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"rani@mail.com","password":"password123"}'
+\`\`\`
+Response (200):
+\`\`\`json
+{
+  "sukses": true,
+  "pesan": "Login berhasil",
+  "data": {
+    "accessToken": "eyJhbGciOi...",
+    "refreshToken": "eyJhbGciOi...",
+    "peserta": { "id": 7, "nama": "Rani", "role": "peserta", "...": "..." }
+  }
+}
+\`\`\`
+Email tidak terdaftar maupun password salah mengembalikan pesan error yang **sama** (`"Email atau password salah"`, 401), supaya penyerang tidak bisa menebak email mana yang valid.
+
+**Refresh**
+\`\`\`bash
+curl -X POST http://localhost:3000/api/auth/refresh \\
+  -H "Content-Type: application/json" \\
+  -d '{"refreshToken":"eyJhbGciOi..."}'
+\`\`\`
+Response (200):
+\`\`\`json
+{ "sukses": true, "pesan": "Access token berhasil diperbarui", "data": { "accessToken": "eyJhbGciOi..." } }
+\`\`\`
+Jika refresh token tidak valid, kedaluwarsa, atau sudah dihapus (misal setelah logout), mengembalikan 401.
+
+**Logout**
+\`\`\`bash
+curl -X POST http://localhost:3000/api/auth/logout \\
+  -H "Content-Type: application/json" \\
+  -d '{"refreshToken":"eyJhbGciOi..."}'
+\`\`\`
+Response (200):
+\`\`\`json
+{ "sukses": true, "pesan": "Logout berhasil", "data": null }
+\`\`\`
+Refresh token langsung dihapus dari database, sehingga tidak bisa dipakai lagi untuk refresh walau JWT-nya sendiri secara teknis belum kedaluwarsa.
+
+### Role
+
+Ada dua role: `peserta` (default saat register) dan `mentor` (di-set manual di database). Role menentukan endpoint mana yang boleh diakses — lihat tabel endpoint di bawah, kolom "Akses".
+
 ## Daftar Endpoint
 
 ### Peserta
 
-| Method | Endpoint | Keterangan |
-|---|---|---|
-| GET | /api/peserta | Semua peserta, filter `?sekolah=&fase=&limit=` |
-| GET | /api/peserta/:id | Detail satu peserta |
-| POST | /api/peserta | Tambah peserta baru |
-| PUT | /api/peserta/:id | Update peserta |
-| DELETE | /api/peserta/:id | Hapus peserta (perlu header `x-api-key`) |
-| GET | /api/peserta/:id/jurnal | Semua jurnal milik peserta tertentu (relasi One-to-Many) |
+| Method | Endpoint | Keterangan | Akses |
+|---|---|---|---|
+| GET | /api/peserta | Semua peserta, filter `?sekolah=&fase=&limit=` | Publik |
+| GET | /api/peserta/profil-saya | Profil milik sendiri | Login (peserta/mentor) |
+| GET | /api/peserta/:id | Detail satu peserta | Publik |
+| POST | /api/peserta | Tambah peserta baru | Publik |
+| PUT | /api/peserta/:id | Update peserta | Login (peserta/mentor) |
+| DELETE | /api/peserta/:id | Hapus peserta | Hanya mentor |
+| GET | /api/peserta/:id/jurnal | Semua jurnal milik peserta tertentu (relasi One-to-Many) | Publik |
 
 ### Jurnal
 
-| Method | Endpoint | Keterangan |
-|---|---|---|
-| GET | /api/jurnal | Semua jurnal, filter `?peserta=&status=` |
-| GET | /api/jurnal/:id | Detail satu jurnal |
-| POST | /api/jurnal | Tambah jurnal baru |
-| PUT | /api/jurnal/:id | Update jurnal |
-| PATCH | /api/jurnal/:id/review | Ubah status review, body `{"statusReview": "sudah"}` |
-| DELETE | /api/jurnal/:id | Hapus jurnal (perlu header `x-api-key`) |
+| Method | Endpoint | Keterangan | Akses |
+|---|---|---|---|
+| GET | /api/jurnal | Semua jurnal, filter `?peserta=&status=` | Hanya mentor |
+| GET | /api/jurnal/saya | Jurnal milik sendiri (dari token, bukan query/params) | Login (peserta/mentor) |
+| GET | /api/jurnal/:id | Detail satu jurnal | Publik |
+| POST | /api/jurnal | Tambah jurnal baru | Publik |
+| PUT | /api/jurnal/:id | Update jurnal — peserta hanya bisa edit miliknya sendiri, mentor bisa edit semua | Login (peserta/mentor) |
+| PATCH | /api/jurnal/:id/review | Ubah status review, body `{"statusReview": "sudah"}` | Hanya mentor |
+| DELETE | /api/jurnal/:id | Hapus jurnal | Publik |
 
 ### Statistik
 
-| Method | Endpoint | Keterangan |
-|---|---|---|
-| GET | /api/stats | Total peserta, total jurnal, jurnal belum direview, rata-rata jurnal per peserta, jumlah jurnal per peserta (QueryBuilder + GROUP BY), skill terpopuler (relasi Many-to-Many) |
+| Method | Endpoint | Keterangan | Akses |
+|---|---|---|---|
+| GET | /api/stats | Total peserta, total jurnal, jurnal belum direview, rata-rata jurnal per peserta, jumlah jurnal per peserta (QueryBuilder + GROUP BY), skill terpopuler (relasi Many-to-Many) | Publik |
+
+Endpoint yang butuh login dipanggil dengan header:
+\`\`\`
+Authorization: Bearer <accessToken>
+\`\`\`
 
 ## Contoh Request
 
