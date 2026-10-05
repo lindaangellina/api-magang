@@ -2,7 +2,7 @@ import { AppDataSource } from "../config/database.config";
 import { JurnalHarian } from "../entities/Jurnal.entity";
 import { Peserta } from "../entities/Peserta.entity";
 import { JurnalBody, StatusReview } from "../types";
-import { NotFoundError, UnauthorizedError } from "../utils/AppError";
+import { NotFoundError, ForbiddenError } from "../utils/AppError";
 
 const jurnalRepo = AppDataSource.getRepository(JurnalHarian);
 const pesertaRepo = AppDataSource.getRepository(Peserta);
@@ -63,10 +63,9 @@ export async function updateJurnal(
   const jurnal = await jurnalRepo.findOneBy({ id });
   if (!jurnal) throw new NotFoundError("Jurnal");
 
-  // mentor boleh edit jurnal siapapun; peserta hanya boleh edit miliknya sendiri
-  if (role !== "mentor" && jurnal.pesertaId !== userId) {
-    throw new UnauthorizedError("Kamu tidak berhak mengubah jurnal ini");
-  }
+ if (role !== "mentor" && jurnal.pesertaId !== userId) {
+  throw new ForbiddenError("Kamu tidak berhak mengubah jurnal ini");
+}
 
   jurnalRepo.merge(jurnal, perubahan);
   return jurnalRepo.save(jurnal);

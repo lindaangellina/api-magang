@@ -7,7 +7,6 @@ import { requireRole } from "../middlewares/role.middleware";
 const router = Router();
 
 router.get("/", pesertaController.getSemuaPeserta);
-router.get("/profil-saya", authGuard, pesertaController.getProfilSaya);
 router.get("/:id", pesertaController.getPesertaById);
 router.post("/", validasiPeserta, pesertaController.buatPeserta);
 router.put("/:id", authGuard, validasiPeserta, pesertaController.updatePeserta);

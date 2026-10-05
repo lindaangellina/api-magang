@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { UnauthorizedError } from "../utils/AppError";
+import { ForbiddenError } from "../utils/AppError";
 
 type Role = "peserta" | "mentor";
 
@@ -8,7 +8,7 @@ export function requireRole(...rolesYangDiizinkan: Role[]) {
     const role = req.user?.role;
 
     if (!role || !rolesYangDiizinkan.includes(role)) {
-      throw new UnauthorizedError(
+      throw new ForbiddenError(
         `Aksi ini hanya untuk: ${rolesYangDiizinkan.join(", ")}`
       );
     }

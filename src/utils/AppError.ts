@@ -5,7 +5,7 @@ export class AppError extends Error {
   constructor(pesan: string, statusCode: number = 500) {
     super(pesan);
     this.statusCode = statusCode;
-    this.isOperational = true; // error yang kita buat sendiri, bukan bug tak terduga
+    this.isOperational = true;
 
     Error.captureStackTrace(this, this.constructor);
   }
@@ -29,6 +29,12 @@ export class ValidationError extends AppError {
 export class UnauthorizedError extends AppError {
   constructor(pesan: string = "Tidak memiliki akses") {
     super(pesan, 401);
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(pesan: string = "Anda tidak berhak melakukan aksi ini") {
+    super(pesan, 403);
   }
 }
 
