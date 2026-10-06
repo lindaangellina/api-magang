@@ -49,7 +49,11 @@ export async function register(data: RegisterInput) {
 }
 
 export async function login(data: LoginInput) {
-  const peserta = await repo.findOneBy({ email: data.email });
+  const peserta = await repo
+    .createQueryBuilder("p")
+    .addSelect("p.password")
+    .where("p.email = :email", { email: data.email })
+    .getOne();
 
   if (!peserta) {
     throw new UnauthorizedError("Email atau password salah");

@@ -1,22 +1,46 @@
+import { Between, FindOptionsOrder, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual } from "typeorm";
 import { AppDataSource } from "../config/database.config";
 import { JurnalHarian } from "../entities/Jurnal.entity";
 import { Peserta } from "../entities/Peserta.entity";
 import { JurnalBody, StatusReview } from "../types";
 import { NotFoundError, ForbiddenError } from "../utils/AppError";
+import { ListQuery } from "../utils/pagination";
 
 const jurnalRepo = AppDataSource.getRepository(JurnalHarian);
 const pesertaRepo = AppDataSource.getRepository(Peserta);
 
-export async function getSemuaJurnal(filter: {
-  peserta?: string;
-  status?: string;
-}): Promise<JurnalHarian[]> {
-  return jurnalRepo.find({
-    where: {
-      ...(filter.peserta && { pesertaId: Number(filter.peserta) }),
-      ...(filter.status && { statusReview: filter.status as StatusReview }),
-    },
+// Daftar kolom yang BOLEH dipakai untuk sorting
+export const SORT_JURNAL = ["createdAt", "statusReview"] as const;
+
+interface FilterJurnal {
+  pesertaId?: number;
+  statusReview?: StatusReview;
+  from?: string;
+  to?: string;
+}
+
+export async function daftarJurnal(lq: ListQuery, filter: FilterJurnal) {
+  const where: FindOptionsWhere<JurnalHarian> = {};
+
+  if (filter.pesertaId) where.pesertaId = filter.pesertaId;
+  if (filter.statusReview) where.statusReview = filter.statusReview;
+
+  if (filter.from && filter.to) {
+    where.createdAt = Between(new Date(`${filter.from}T00:00:00`), new Date(`${filter.to}T23:59:59`));
+  } else if (filter.from) {
+    where.createdAt = MoreThanOrEqual(new Date(`${filter.from}T00:00:00`));
+  } else if (filter.to) {
+    where.createdAt = LessThanOrEqual(new Date(`${filter.to}T23:59:59`));
+  }
+
+  const [data, total] = await jurnalRepo.findAndCount({
+    where,
+    order: { [lq.sortBy]: lq.order } as FindOptionsOrder<JurnalHarian>,
+    skip: (lq.page - 1) * lq.limit,
+    take: lq.limit,
   });
+
+  return { data, total };
 }
 
 export async function getJurnalById(id: number): Promise<JurnalHarian> {
@@ -53,7 +77,6 @@ export async function buatJurnal(body: JurnalBody): Promise<JurnalHarian> {
   return jurnalRepo.save(baru);
 }
 
-// sekarang menerima userId & role, untuk ownership check
 export async function updateJurnal(
   id: number,
   userId: number,
@@ -63,9 +86,9 @@ export async function updateJurnal(
   const jurnal = await jurnalRepo.findOneBy({ id });
   if (!jurnal) throw new NotFoundError("Jurnal");
 
- if (role !== "mentor" && jurnal.pesertaId !== userId) {
-  throw new ForbiddenError("Kamu tidak berhak mengubah jurnal ini");
-}
+  if (role !== "mentor" && jurnal.pesertaId !== userId) {
+    throw new ForbiddenError("Kamu tidak berhak mengubah jurnal ini");
+  }
 
   jurnalRepo.merge(jurnal, perubahan);
   return jurnalRepo.save(jurnal);

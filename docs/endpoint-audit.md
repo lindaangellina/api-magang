@@ -48,3 +48,34 @@ Audit seluruh endpoint yang ada sebelum refactor Minggu 13.
 | j | Database mati saat request masuk | 503 Service Unavailable | Dependensi (database) tidak tersedia, bukan bug di kode |
 
 \* Catatan: implementasi saat ini (middleware `validasiRegister`) masih mengembalikan 400 untuk email format salah, karena belum dipisahkan 400 vs 422 — ini akan dirapikan di Minggu 14 sesuai arahan materi ("Minggu 14 akan memakai 422 untuk semua kegagalan validasi").
+
+## Uji Kasus Tepi (Soal 5, Minggu 13 Selasa)
+
+Semua diuji di endpoint `GET /api/peserta`.
+
+| Kasus | Hasil | Keterangan |
+|---|---|---|
+| `?page=0` | 200 OK, `meta.page: 1` | Dibenerin otomatis ke minimal 1 |
+| `?page=-5` | 200 OK, `meta.page: 1` | Dibenerin otomatis ke minimal 1 |
+| `?page=abc` | 200 OK, `meta.page: 1` | `parseInt` gagal → fallback ke default |
+| `?limit=1000` | 200 OK, `meta.limit: 100` | Dibatasi ke cap maksimal 100 |
+| `?limit=0` | 200 OK, `meta.limit: 10` | Dibenerin otomatis ke minimal 1, fallback ke default 10 |
+| `?limit=abc` | 200 OK, `meta.limit: 10` | `parseInt` gagal → fallback ke default |
+| `?sortBy=password` | 200 OK, urutan default (createdAt) | Ditolak whitelist, fallback ke default, password tidak bocor lewat urutan |
+| `?sortBy=nama;DROP TABLE peserta` | 200 OK, urutan default, tabel tetap utuh | Percobaan SQL injection gagal total — whitelist menolak nilai yang tidak dikenal |
+| `?q=%` | 200 OK, `total: 0` | Wildcard `%` di-escape, dicari sebagai karakter literal, tidak mengembalikan semua data |
+| `?q=_` | 200 OK, `total: 0` | Wildcard `_` di-escape, sama seperti di atas |
+| `?q=` (kosong) | 200 OK, semua data normal | String kosong dianggap "tidak ada pencarian" |
+
+Semua kasus ditangani tanpa crash (tidak ada 500), tanpa bocor data sensitif, dan tanpa mengubah/merusak data di database.
+
+## Soal 6 (Bonus) — Uji Pagination dengan 50 Data Dummy
+
+Seed 50 peserta dummy dijalankan lewat `src/scripts/seed-peserta.ts`, menambah total peserta dari 7 menjadi 57.
+
+| Kasus | Hasil |
+|---|---|
+| `?page=6&limit=10` (halaman terakhir) | 200 OK, 7 data tersisa, `total: 57`, `totalPages: 6`, `hasNext: false`, `hasPrev: true` |
+| `?page=7&limit=10` (satu halaman di luar batas) | 200 OK, `data: []`, meta tetap konsisten menunjukkan total dan totalPages yang benar |
+
+Kedua kasus ditangani tanpa error, membuktikan `skip`/`take` di TypeORM aman dipakai meski halaman yang diminta melebihi jumlah data yang tersedia.

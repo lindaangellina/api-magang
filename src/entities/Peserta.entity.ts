@@ -28,8 +28,8 @@ export class Peserta {
   @Column({ type: "enum", enum: ["aktif", "lulus", "berhenti"], default: "aktif" })
   status!: StatusPeserta;
 
-  @Column({ type: "varchar", default: "" })
-  password!: string; // sementara default kosong, nanti diisi lewat endpoint register (Selasa)
+  @Column({ type: "varchar", default: "", select: false })
+  password!: string; // tidak ikut ter-query kecuali diminta eksplisit (addSelect)
 
   @Column({ type: "varchar", default: "peserta" })
   role!: RolePeserta;
