@@ -31,23 +31,41 @@ Audit seluruh endpoint yang ada sebelum refactor Minggu 13.
 - `DELETE /api/jurnal/:id` sekarang wajib login (`authGuard`) — sebelumnya bisa diakses siapa saja tanpa token.
 - `requireRole` sebelumnya melempar 401 Unauthorized saat role tidak sesuai, sekarang dikoreksi menjadi 403 Forbidden (user sudah dikenali lewat token, hanya tidak punya hak akses).
 - Ownership check di `updateJurnal` (peserta mencoba edit jurnal milik orang lain) juga dikoreksi dari 401 menjadi 403, dengan alasan yang sama.
+- Format error diseragamkan: `{ sukses: false, error: { kode, pesan, detail? }, requestId }`. Daftar kode ada di `docs/error-codes.md`.
+- Kegagalan validasi sekarang mengembalikan 422 dengan `detail` per field (`{ field, pesan }`), sebelumnya 400 dengan array string.
+- Error PostgreSQL, JWT, dan JSON rusak diterjemahkan menjadi `AppError` yang sesuai, tidak lagi menjadi 500.
+- `authGuard` tidak lagi menangkap error JWT sendiri, supaya `TOKEN_EXPIRED` dan `INVALID_TOKEN` bisa dibedakan oleh `errorHandler`.
+- Rate limiter memakai format error yang sama (`RATE_LIMITED`, 429) beserta header `Retry-After`.
 
 ## Status Code — 10 Skenario
 
 | # | Skenario | Status Code | Alasan |
 |---|---|---|---|
 | a | Register berhasil | 201 Created | Data baru berhasil dibuat |
-| b | Register dengan email yang sudah ada | 409 Conflict | Bentrok dengan data yang sudah ada |
-| c | Login dengan password salah | 401 Unauthorized | Identitas tidak bisa diverifikasi (belum "dikenali" sistem) |
-| d | Akses /me tanpa token | 401 Unauthorized | Sistem tidak tahu siapa yang mengakses |
-| e | Peserta mencoba PATCH /jurnal/5/review (khusus mentor) | 403 Forbidden | Sistem tahu siapa dia (sudah login), tapi perannya tidak berhak |
-| f | GET /peserta/9999 (tidak ada) | 404 Not Found | Resource dengan id tersebut tidak ditemukan |
+| b | Register dengan email yang sudah ada | 409 Conflict (`CONFLICT`) | Bentrok dengan data yang sudah ada |
+| c | Login dengan password salah | 401 Unauthorized (`UNAUTHORIZED`) | Identitas tidak bisa diverifikasi (belum "dikenali" sistem) |
+| d | Akses /me tanpa token | 401 Unauthorized (`UNAUTHORIZED`) | Sistem tidak tahu siapa yang mengakses |
+| e | Peserta mencoba PATCH /jurnal/5/review (khusus mentor) | 403 Forbidden (`FORBIDDEN`) | Sistem tahu siapa dia (sudah login), tapi perannya tidak berhak |
+| f | GET /peserta/9999 (tidak ada) | 404 Not Found (`NOT_FOUND`) | Resource dengan id tersebut tidak ditemukan |
 | g | DELETE /peserta/1 berhasil | 204 No Content | Berhasil, tidak ada isi yang perlu dikembalikan |
-| h | POST /peserta dengan body JSON yang rusak | 400 Bad Request | Request tidak bisa dipahami (JSON tidak valid) |
-| i | POST /peserta dengan email format salah | 422 Unprocessable Entity* | Request bisa dipahami, tapi melanggar aturan validasi |
-| j | Database mati saat request masuk | 503 Service Unavailable | Dependensi (database) tidak tersedia, bukan bug di kode |
+| h | POST /peserta dengan body JSON yang rusak | 400 Bad Request (`INVALID_JSON`) | Request tidak bisa dipahami (JSON tidak valid) |
+| i | POST /peserta dengan email format salah | 422 Unprocessable Entity (`VALIDATION_ERROR`) | Request bisa dipahami, tapi melanggar aturan validasi. Sudah diverifikasi lewat curl: detail berisi array `{ field, pesan }` |
+| j | Database mati saat request masuk | 503 Service Unavailable | Dependensi (database) tidak tersedia, bukan bug di kode. Belum ditangani khusus, saat ini masih jatuh ke 500 `INTERNAL_ERROR` |
 
-\* Catatan: implementasi saat ini (middleware `validasiRegister`) masih mengembalikan 400 untuk email format salah, karena belum dipisahkan 400 vs 422 — ini akan dirapikan di Minggu 14 sesuai arahan materi ("Minggu 14 akan memakai 422 untuk semua kegagalan validasi").
+## Uji Terjemahan Error (Rabu, diuji lewat curl)
+
+| Skenario | Hasil |
+|---|---|
+| Register dengan email yang sudah ada | 409 `CONFLICT` |
+| Hapus peserta yang masih punya jurnal | 409 `CONFLICT` (PostgreSQL 23503 diterjemahkan) |
+| Body JSON rusak | 400 `INVALID_JSON` |
+| Akses /me dengan token expired | 401 `TOKEN_EXPIRED` |
+| Akses /me dengan token asal-asalan | 401 `INVALID_TOKEN` |
+| Peserta mengakses endpoint khusus mentor | 403 `FORBIDDEN` |
+| Route yang tidak ada | 404 `NOT_FOUND` |
+| Error tak terduga dengan `NODE_ENV=production` | 500 `INTERNAL_ERROR`, tanpa field `debug` (stack trace dan pesan asli tidak bocor) |
+
+Dengan `NODE_ENV=development`, response menyertakan field `debug` untuk membantu penelusuran.
 
 ## Uji Kasus Tepi (Soal 5, Minggu 13 Selasa)
 

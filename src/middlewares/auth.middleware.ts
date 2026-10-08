@@ -19,11 +19,10 @@ export function authGuard(req: Request, res: Response, next: NextFunction): void
 
   const token = authHeader.split(" ")[1];
 
-  try {
-    const payload = verifikasiToken(token);
-    req.user = payload;
-    next();
-  } catch (err) {
-    throw new UnauthorizedError("Token tidak valid atau sudah kedaluwarsa");
-  }
+  // Jangan tangkap error di sini — biarkan error asli JWT (TokenExpiredError /
+  // JsonWebTokenError) mengalir ke errorHandler, supaya diterjemahkan jadi
+  // TOKEN_EXPIRED atau INVALID_TOKEN yang tepat.
+  const payload = verifikasiToken(token);
+  req.user = payload;
+  next();
 }

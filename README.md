@@ -37,6 +37,8 @@ JWT_REFRESH_EXPIRES_IN=7d
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 \`\`\`
 
+`NODE_ENV=production` menyembunyikan field `debug` (pesan asli dan stack trace) dari response error. Di `development`, field itu muncul untuk membantu penelusuran.
+
 ## Database
 
 Buat database terlebih dahulu lewat `psql`:
@@ -97,7 +99,7 @@ API ini memakai JWT dengan dua jenis token:
 - **Access token** — umur pendek (15 menit), dikirim di header `Authorization: Bearer <token>` untuk tiap request ke endpoint yang terproteksi.
 - **Refresh token** — umur panjang (7 hari), disimpan di database (tabel `refresh_token`) sehingga bisa dicabut manual saat logout. Dipakai khusus untuk menukar access token baru tanpa perlu login ulang.
 
-Setelah login gagal karena access token kedaluwarsa (401), client cukup memanggil `/api/auth/refresh` dengan refresh token untuk mendapat access token baru, tanpa perlu mengisi ulang email/password.
+Saat access token kedaluwarsa, API mengembalikan `401` dengan `kode: "TOKEN_EXPIRED"`. Client cukup memanggil `/api/auth/refresh` dengan refresh token untuk mendapat access token baru, tanpa perlu mengisi ulang email/password. Token yang rusak atau dipalsukan mengembalikan `kode: "INVALID_TOKEN"`.
 
 ### Endpoint Auth
 
@@ -169,33 +171,38 @@ Refresh token langsung dihapus dari database, sehingga tidak bisa dipakai lagi u
 
 ### Role
 
-Ada dua role: `peserta` (default saat register) dan `mentor` (di-set manual di database). Role menentukan endpoint mana yang boleh diakses — lihat tabel endpoint di bawah, kolom "Akses".
+Ada dua role: `peserta` (default saat register) dan `mentor` (di-set manual di database). Role menentukan endpoint mana yang boleh diakses — lihat tabel endpoint di bawah, kolom "Akses". Login tapi role tidak sesuai mengembalikan `403 FORBIDDEN`; belum login mengembalikan `401 UNAUTHORIZED`.
 
 ## Daftar Endpoint
+
+### Profil Saya
+
+| Method | Endpoint | Keterangan | Akses |
+|---|---|---|---|
+| GET | /api/me | Profil milik sendiri (diambil dari token) | Login (peserta/mentor) |
+| GET | /api/me/jurnal | Jurnal milik sendiri (diambil dari token, bukan query/params) | Login (peserta/mentor) |
 
 ### Peserta
 
 | Method | Endpoint | Keterangan | Akses |
 |---|---|---|---|
-| GET | /api/peserta | Semua peserta, filter `?sekolah=&fase=&limit=` | Publik |
-| GET | /api/peserta/profil-saya | Profil milik sendiri | Login (peserta/mentor) |
+| GET | /api/peserta | Daftar peserta dengan pagination, filter, sorting, pencarian (lihat bagian Pagination) | Publik |
 | GET | /api/peserta/:id | Detail satu peserta | Publik |
 | POST | /api/peserta | Tambah peserta baru | Publik |
 | PUT | /api/peserta/:id | Update peserta | Login (peserta/mentor) |
-| DELETE | /api/peserta/:id | Hapus peserta | Hanya mentor |
+| DELETE | /api/peserta/:id | Hapus peserta (409 jika masih punya jurnal) | Hanya mentor |
 | GET | /api/peserta/:id/jurnal | Semua jurnal milik peserta tertentu (relasi One-to-Many) | Publik |
 
 ### Jurnal
 
 | Method | Endpoint | Keterangan | Akses |
 |---|---|---|---|
-| GET | /api/jurnal | Semua jurnal, filter `?peserta=&status=` | Hanya mentor |
-| GET | /api/jurnal/saya | Jurnal milik sendiri (dari token, bukan query/params) | Login (peserta/mentor) |
+| GET | /api/jurnal | Daftar semua jurnal dengan pagination, filter, sorting (lihat bagian Pagination) | Hanya mentor |
 | GET | /api/jurnal/:id | Detail satu jurnal | Publik |
-| POST | /api/jurnal | Tambah jurnal baru | Publik |
+| POST | /api/jurnal | Tambah jurnal baru | Login (peserta/mentor) |
 | PUT | /api/jurnal/:id | Update jurnal — peserta hanya bisa edit miliknya sendiri, mentor bisa edit semua | Login (peserta/mentor) |
 | PATCH | /api/jurnal/:id/review | Ubah status review, body `{"statusReview": "sudah"}` | Hanya mentor |
-| DELETE | /api/jurnal/:id | Hapus jurnal | Publik |
+| DELETE | /api/jurnal/:id | Hapus jurnal | Login (peserta/mentor) |
 
 ### Statistik
 
@@ -207,6 +214,50 @@ Endpoint yang butuh login dipanggil dengan header:
 \`\`\`
 Authorization: Bearer <accessToken>
 \`\`\`
+
+## Pagination, Filtering, Sorting & Pencarian
+
+Endpoint daftar (`GET /api/peserta` dan `GET /api/jurnal`) tidak pernah mengembalikan semua data sekaligus.
+
+| Parameter | Keterangan | Default |
+|---|---|---|
+| `page` | Halaman ke berapa (mulai dari 1) | 1 |
+| `limit` | Jumlah data per halaman, maksimal 100 | 10 |
+| `sortBy` | Kolom pengurutan, hanya dari daftar yang diizinkan | `createdAt` |
+| `order` | `asc` atau `desc` | `desc` |
+| `q` | Kata kunci pencarian (khusus peserta: nama atau email) | - |
+
+Filter dan kolom `sortBy` yang diizinkan:
+
+| Endpoint | Filter | sortBy yang diizinkan |
+|---|---|---|
+| GET /api/peserta | `sekolah`, `fase`, `q` | `nama`, `fase`, `createdAt` |
+| GET /api/jurnal | `pesertaId`, `statusReview`, `from`, `to` (format `YYYY-MM-DD`) | `createdAt`, `statusReview` |
+
+Contoh:
+\`\`\`bash
+curl "http://localhost:3000/api/peserta?page=2&limit=10&sortBy=nama&order=asc&q=budi&fase=1"
+\`\`\`
+
+Response memuat `meta`:
+\`\`\`json
+{
+  "sukses": true,
+  "pesan": "Daftar peserta berhasil diambil",
+  "data": [ { "id": 3, "nama": "Ajeng", "...": "..." } ],
+  "meta": { "page": 1, "limit": 10, "total": 57, "totalPages": 6, "hasNext": true, "hasPrev": false }
+}
+\`\`\`
+
+Keamanan input:
+- `page` dan `limit` yang tidak valid (0, negatif, huruf) otomatis diganti nilai default, dan `limit` dibatasi maksimal 100.
+- `sortBy` memakai whitelist. Nilai di luar daftar (misalnya `password` atau potongan SQL) diabaikan dan memakai urutan default.
+- Karakter wildcard `%` dan `_` pada `q` di-escape, sehingga `q=%` tidak mengembalikan semua data.
+- Halaman di luar jangkauan mengembalikan `data: []` dengan status tetap `200`.
+
+## Rate Limiting
+
+Satu IP dibatasi 10 request per menit. Jika terlampaui, API mengembalikan `429` dengan `kode: "RATE_LIMITED"`, `detail.cobaLagiDalamDetik`, dan header `Retry-After`.
 
 ## Contoh Request
 
@@ -225,8 +276,23 @@ Sukses:
 
 Error:
 \`\`\`json
-{ "sukses": false, "error": "...", "detail": [ "..." ] }
+{
+  "sukses": false,
+  "error": {
+    "kode": "VALIDATION_ERROR",
+    "pesan": "Validasi gagal",
+    "detail": [{ "field": "email", "pesan": "Format email tidak valid" }]
+  },
+  "requestId": "b7a1c9e2"
+}
 \`\`\`
+
+- `kode` stabil dan dipakai kode frontend untuk mengambil keputusan (misal `TOKEN_EXPIRED` memicu refresh token).
+- `pesan` dibaca manusia dan boleh berubah redaksinya.
+- `detail` opsional, ada pada validasi (per field) dan rate limit.
+- `requestId` dikirim user ke developer saat melapor error, sama dengan header `X-Request-Id`.
+
+Daftar lengkap kode error, status HTTP, dan contohnya ada di [docs/error-codes.md](docs/error-codes.md). Audit endpoint dan hasil uji ada di [docs/endpoint-audit.md](docs/endpoint-audit.md).
 
 ## Catatan: Apa itu ORM?
 

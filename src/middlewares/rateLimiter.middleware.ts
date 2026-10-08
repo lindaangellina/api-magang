@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { RateLimitedError } from "../utils/AppError";
 
 interface CatatanIp {
   jumlah: number;
@@ -23,11 +24,8 @@ export function rateLimiter(req: Request, res: Response, next: NextFunction): vo
 
   if (catatan.jumlah >= BATAS_REQUEST) {
     const sisaDetik = Math.ceil((catatan.waktuReset - sekarang) / 1000);
-    res.status(429).json({
-      error: "Terlalu banyak request, coba lagi nanti",
-      cobaLagiDalam: `${sisaDetik} detik`,
-    });
-    return;
+    res.setHeader("Retry-After", String(sisaDetik));
+    throw new RateLimitedError(sisaDetik);
   }
 
   catatan.jumlah += 1;
