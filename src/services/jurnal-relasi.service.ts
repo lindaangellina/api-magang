@@ -2,6 +2,7 @@ import { AppDataSource } from "../config/database.config";
 import { Peserta } from "../entities/Peserta.entity";
 import { JurnalHarian } from "../entities/Jurnal.entity";
 import { Skill } from "../entities/Skill.entity";
+import { logger } from "../utils/logger";
 
 export async function getPesertaDenganJurnal(id: number) {
   const pesertaRepo = AppDataSource.getRepository(Peserta);
@@ -55,5 +56,5 @@ export async function seedSkillDanRelasi() {
     await pesertaRepo.save(peserta2);
   }
 
-  console.log("Seed skill & relasi selesai");
+  logger.info("Seed skill & relasi selesai");
 }

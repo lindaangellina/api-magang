@@ -15,7 +15,7 @@ export const AppDataSource = new DataSource({
   password: config.db.password,
   database: config.db.name,
   synchronize: false,
-  logging: config.app.env === "development",
+  logging: ["error", "warn"],
   entities: [Peserta, JurnalHarian, Mentor, Skill, RefreshToken],
   migrations: ["src/migrations/**/*.ts"],
 });

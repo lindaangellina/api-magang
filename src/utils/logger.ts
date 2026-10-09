@@ -1,19 +1,16 @@
-type LogInfo = Record<string, unknown>;
+type Level = "debug" | "info" | "warn" | "error";
 
-function format(level: string, message: string, info?: LogInfo): string {
-  const waktu = new Date().toISOString();
-  const infoStr = info ? ` ${JSON.stringify(info)}` : "";
-  return `[${waktu}] [${level}] ${message}${infoStr}`;
+function tulis(level: Level, pesan: string, meta: Record<string, unknown> = {}): void {
+  const baris = { waktu: new Date().toISOString(), level, pesan, ...meta };
+  const keluaran = JSON.stringify(baris);
+
+  if (level === "error") console.error(keluaran);
+  else console.log(keluaran);
 }
 
 export const logger = {
-  error(message: string, info?: LogInfo): void {
-    console.error(format("ERROR", message, info));
-  },
-  warn(message: string, info?: LogInfo): void {
-    console.warn(format("WARN", message, info));
-  },
-  info(message: string, info?: LogInfo): void {
-    console.log(format("INFO", message, info));
-  },
+  debug: (pesan: string, meta?: Record<string, unknown>) => tulis("debug", pesan, meta),
+  info: (pesan: string, meta?: Record<string, unknown>) => tulis("info", pesan, meta),
+  warn: (pesan: string, meta?: Record<string, unknown>) => tulis("warn", pesan, meta),
+  error: (pesan: string, meta?: Record<string, unknown>) => tulis("error", pesan, meta),
 };

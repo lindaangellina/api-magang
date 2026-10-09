@@ -1,14 +1,18 @@
 import { Request, Response, NextFunction } from "express";
+import { logger } from "../utils/logger";
 
 export function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const mulai = Date.now();
 
-  // Event "finish" terpanggil SETELAH response selesai dikirim,
-  // jadi di sini kita sudah tau status code final-nya
+  // "finish" terpanggil setelah response selesai dikirim, jadi status code sudah final
   res.on("finish", () => {
-    const durasi = Date.now() - mulai;
-    const waktu = new Date().toISOString();
-    console.log(`[${waktu}] ${req.method} ${req.originalUrl} ${res.statusCode} - ${durasi}ms`);
+    logger.info("request selesai", {
+      requestId: req.requestId,
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      durasiMs: Date.now() - mulai,
+    });
   });
 
   next();

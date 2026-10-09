@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { AppDataSource } from "../config/database.config";
 import { Peserta } from "../entities/Peserta.entity";
 import { hashPassword } from "../utils/password";
+import { logger } from "../utils/logger";
 
 const SEKOLAH_LIST = ["SMK Negeri 1", "SMK Negeri 2", "SMK Negeri 3", "SMK Negeri 5", "SMK Taruna"];
 const NAMA_DEPAN = ["Budi", "Siti", "Agus", "Dewi", "Rian", "Putri", "Dedi", "Lina", "Fajar", "Mega"];
@@ -9,7 +10,7 @@ const NAMA_BELAKANG = ["Santoso", "Wijaya", "Pratama", "Lestari", "Kurnia", "Sap
 
 async function seed() {
   await AppDataSource.initialize();
-  console.log("Database terhubung, mulai seeding...");
+  logger.info("Database terhubung, mulai seeding");
 
   const repo = AppDataSource.getRepository(Peserta);
   const passwordHash = await hashPassword("dummy12345");
@@ -40,11 +41,11 @@ async function seed() {
     }
   }
 
-  console.log("Seeding selesai — 50 peserta dummy berhasil ditambahkan (atau sudah ada sebelumnya).");
+  logger.info("Seeding selesai", { jumlah: 50 });
   await AppDataSource.destroy();
 }
 
 seed().catch((err) => {
-  console.error("Gagal seeding:", err);
+  logger.error("Gagal seeding", { error: err instanceof Error ? err.stack : String(err) });
   process.exit(1);
 });
