@@ -5,6 +5,8 @@ import { pesertaService, jurnalService } from "../services";
 import { tanpaPassword } from "../utils/password";
 import { parseListQuery, buatMeta } from "../utils/pagination";
 import { SORT_PESERTA } from "../services/peserta.service";
+import { ForbiddenError } from "../utils/AppError";
+import { API_PREFIX } from "../config/constants";
 
 export const getSemuaPeserta = asyncHandler(async (req: Request, res: Response) => {
   const lq = parseListQuery(req.query, SORT_PESERTA);
@@ -22,12 +24,25 @@ export const getPesertaById = asyncHandler(async (req: Request, res: Response) =
 
 export const buatPeserta = asyncHandler(async (req: Request, res: Response) => {
   const baru = await pesertaService.buatPeserta(req.body);
-  dibuat(res, tanpaPassword(baru), "Peserta berhasil ditambahkan");
+  dibuat(res, tanpaPassword(baru), "Peserta berhasil ditambahkan", `${API_PREFIX}/peserta/${baru.id}`);
 });
 
-export const updatePeserta = asyncHandler(async (req: Request, res: Response) => {
-  const hasil = await pesertaService.updatePeserta(Number(req.params.id), req.body);
-  sukses(res, tanpaPassword(hasil), "Peserta berhasil diupdate");
+// PATCH /peserta/:id: peserta hanya boleh mengubah dirinya sendiri, mentor boleh semua
+export const ubahPeserta = asyncHandler(async (req: Request, res: Response) => {
+  const targetId = Number(req.params.id);
+
+  if (req.user!.role !== "mentor" && req.user!.id !== targetId) {
+    throw new ForbiddenError("Kamu tidak berhak mengubah data peserta lain");
+  }
+
+  const hasil = await pesertaService.ubahProfil(targetId, req.body ?? {});
+  sukses(res, tanpaPassword(hasil), "Peserta berhasil diubah");
+});
+
+// PATCH /me
+export const ubahProfilSaya = asyncHandler(async (req: Request, res: Response) => {
+  const hasil = await pesertaService.ubahProfil(req.user!.id, req.body ?? {});
+  sukses(res, tanpaPassword(hasil), "Profil berhasil diubah");
 });
 
 export const hapusPeserta = asyncHandler(async (req: Request, res: Response) => {
@@ -41,7 +56,6 @@ export const getJurnalByPeserta = asyncHandler(async (req: Request, res: Respons
 });
 
 export const getProfilSaya = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user!.id;
-  const peserta = await pesertaService.getPesertaById(userId);
+  const peserta = await pesertaService.getPesertaById(req.user!.id);
   sukses(res, tanpaPassword(peserta), "Profil berhasil diambil");
 });

@@ -23,6 +23,12 @@ export function suksesDenganMeta<T>(
   res.status(200).json({ sukses: true, pesan, data, meta });
 }
 
-export function dibuat<T>(res: Response, data: T, pesan: string = "Data berhasil dibuat"): void {
+export function dibuat<T>(
+  res: Response,
+  data: T,
+  pesan: string = "Data berhasil dibuat",
+  location?: string
+): void {
+  if (location) res.location(location);
   res.status(201).json({ sukses: true, pesan, data });
 }

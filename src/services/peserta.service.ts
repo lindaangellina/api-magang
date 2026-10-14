@@ -7,7 +7,6 @@ import { ListQuery, escapeLike } from "../utils/pagination";
 
 const repo = AppDataSource.getRepository(Peserta);
 
-// Daftar kolom yang BOLEH dipakai untuk sorting
 export const SORT_PESERTA = ["nama", "fase", "createdAt"] as const;
 
 interface FilterPeserta {
@@ -47,13 +46,25 @@ export async function buatPeserta(body: PesertaBody): Promise<Peserta> {
   const emailSudahAda = await repo.findOneBy({ email: body.email });
   if (emailSudahAda) throw new ConflictError("Email sudah terdaftar");
 
-  const baru = repo.create(body);
+  // Whitelist: role, password, dan status sengaja tidak diambil dari body
+  const baru = repo.create({
+    nama: body.nama,
+    sekolah: body.sekolah,
+    email: body.email,
+    telepon: body.telepon,
+  });
   return repo.save(baru);
 }
 
-export async function updatePeserta(id: number, perubahan: Partial<PesertaBody>): Promise<Peserta> {
+export async function ubahProfil(id: number, body: Record<string, unknown>): Promise<Peserta> {
   const peserta = await repo.findOneBy({ id });
   if (!peserta) throw new NotFoundError("Peserta");
+
+  // Whitelist: hanya nama, sekolah, telepon. role, password, email, status diabaikan
+  const perubahan: Partial<Pick<Peserta, "nama" | "sekolah" | "telepon">> = {};
+  if (typeof body.nama === "string") perubahan.nama = body.nama.trim();
+  if (typeof body.sekolah === "string") perubahan.sekolah = body.sekolah.trim();
+  if (typeof body.telepon === "string") perubahan.telepon = body.telepon.trim();
 
   repo.merge(peserta, perubahan);
   return repo.save(peserta);

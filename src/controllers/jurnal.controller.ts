@@ -5,6 +5,7 @@ import { jurnalService } from "../services";
 import { parseListQuery, buatMeta } from "../utils/pagination";
 import { SORT_JURNAL } from "../services/jurnal.service";
 import { StatusReview } from "../types";
+import { API_PREFIX } from "../config/constants";
 
 export const getSemuaJurnal = asyncHandler(async (req: Request, res: Response) => {
   const lq = parseListQuery(req.query, SORT_JURNAL, "createdAt");
@@ -24,8 +25,8 @@ export const getJurnalById = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const buatJurnal = asyncHandler(async (req: Request, res: Response) => {
-  const baru = await jurnalService.buatJurnal(req.body);
-  dibuat(res, baru, "Jurnal berhasil ditambahkan");
+  const baru = await jurnalService.buatJurnal(req.user!.id, req.body);
+  dibuat(res, baru, "Jurnal berhasil ditambahkan", `${API_PREFIX}/jurnal/${baru.id}`);
 });
 
 export const updateJurnal = asyncHandler(async (req: Request, res: Response) => {
@@ -33,24 +34,23 @@ export const updateJurnal = asyncHandler(async (req: Request, res: Response) => 
     Number(req.params.id),
     req.user!.id,
     req.user!.role,
-    req.body
+    req.body ?? {}
   );
   sukses(res, hasil, "Jurnal berhasil diupdate");
 });
 
 export const updateStatusReview = asyncHandler(async (req: Request, res: Response) => {
-  const statusReview = req.body.statusReview ?? "sudah";
+  const statusReview = req.body?.statusReview ?? "sudah";
   const hasil = await jurnalService.updateStatusReview(Number(req.params.id), statusReview);
   sukses(res, hasil, "Status review berhasil diperbarui");
 });
 
 export const hapusJurnal = asyncHandler(async (req: Request, res: Response) => {
-  await jurnalService.hapusJurnal(Number(req.params.id));
+  await jurnalService.hapusJurnal(Number(req.params.id), req.user!.id, req.user!.role);
   res.status(204).send();
 });
 
 export const getJurnalSaya = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user!.id;
-  const hasil = await jurnalService.getJurnalSaya(userId);
+  const hasil = await jurnalService.getJurnalSaya(req.user!.id);
   suksesDenganTotal(res, hasil, "Jurnal milik saya berhasil diambil");
 });

@@ -32,7 +32,7 @@ Semua error memakai format yang sama:
 | FORBIDDEN | 403 | Sudah login, tapi role atau kepemilikan data tidak sesuai |
 | NOT_FOUND | 404 | Data atau route tidak ditemukan |
 | CONFLICT | 409 | Bentrok dengan data yang ada: email duplikat (23505), atau data masih dipakai relasi lain (23503) |
-| RATE_LIMITED | 429 | Terlalu banyak request dari satu client |
+| RATE_LIMITED | 429 | Terlalu banyak percobaan login gagal dari satu IP (maksimal 10 per 15 menit). Header `Retry-After` memuat sisa detik tunggu |
 | INTERNAL_ERROR | 500 | Bug di server atau error tak terduga. Detail teknis tidak dikirim ke client |
 
 ## Contoh Response

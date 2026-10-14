@@ -4,6 +4,7 @@ import cors from "cors";
 import routes from "./routes";
 import healthRoutes from "./routes/health.routes";
 import { config } from "./config/env.config";
+import { API_PREFIX } from "./config/constants";
 import {
   requestId,
   requestLogger,
@@ -13,21 +14,23 @@ import {
 
 const app: Application = express();
 
-app.use(requestId); // 1. beri ID dulu, supaya semua log punya ID
-app.use(helmet()); // 2. security header standar
+app.use(requestId);
+app.use(helmet());
 app.use(
   cors({
-    origin: config.cors.origins, // daftar origin yang diizinkan
+    origin: config.cors.origins,
     credentials: true,
+    // Tanpa ini, JavaScript di browser tidak bisa membaca header-header ini
+    exposedHeaders: ["Location", "X-Request-Id", "Retry-After"],
   })
 );
-app.use(express.json({ limit: "1mb" })); // 3. batasi ukuran body
-app.use(requestLogger); // 4. log request
+app.use(express.json({ limit: "1mb" }));
+app.use(requestLogger);
 
-app.use("/api", healthRoutes);
-app.use("/api", routes); // 5. route aplikasi
+app.use(API_PREFIX, healthRoutes);
+app.use(API_PREFIX, routes);
 
-app.use(notFoundHandler); // 6. 404
-app.use(errorHandler); // 7. error handler paling akhir
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;

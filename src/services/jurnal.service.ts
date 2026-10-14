@@ -2,14 +2,13 @@ import { Between, FindOptionsOrder, FindOptionsWhere, LessThanOrEqual, MoreThanO
 import { AppDataSource } from "../config/database.config";
 import { JurnalHarian } from "../entities/Jurnal.entity";
 import { Peserta } from "../entities/Peserta.entity";
-import { JurnalBody, StatusReview } from "../types";
+import { StatusReview } from "../types";
 import { NotFoundError, ForbiddenError } from "../utils/AppError";
 import { ListQuery } from "../utils/pagination";
 
 const jurnalRepo = AppDataSource.getRepository(JurnalHarian);
 const pesertaRepo = AppDataSource.getRepository(Peserta);
 
-// Daftar kolom yang BOLEH dipakai untuk sorting
 export const SORT_JURNAL = ["createdAt", "statusReview"] as const;
 
 interface FilterJurnal {
@@ -17,6 +16,12 @@ interface FilterJurnal {
   statusReview?: StatusReview;
   from?: string;
   to?: string;
+}
+
+interface JurnalInput {
+  kegiatan: string;
+  hambatan?: string;
+  linkCommit?: string;
 }
 
 export async function daftarJurnal(lq: ListQuery, filter: FilterJurnal) {
@@ -61,18 +66,17 @@ export async function getJurnalByPeserta(pesertaId: number): Promise<{ peserta: 
 }
 
 export async function getJurnalSaya(pesertaId: number): Promise<JurnalHarian[]> {
-  return jurnalRepo.find({
-    where: { pesertaId },
-  });
+  return jurnalRepo.find({ where: { pesertaId } });
 }
 
-export async function buatJurnal(body: JurnalBody): Promise<JurnalHarian> {
+// pesertaId datang dari token (bukan dari body), statusReview selalu "belum"
+export async function buatJurnal(pesertaId: number, body: JurnalInput): Promise<JurnalHarian> {
   const baru = jurnalRepo.create({
-    pesertaId: body.pesertaId,
+    pesertaId,
     kegiatan: body.kegiatan,
     hambatan: body.hambatan,
     linkCommit: body.linkCommit,
-    statusReview: body.statusReview ?? "belum",
+    statusReview: "belum",
   });
   return jurnalRepo.save(baru);
 }
@@ -81,7 +85,7 @@ export async function updateJurnal(
   id: number,
   userId: number,
   role: "peserta" | "mentor",
-  perubahan: Partial<JurnalBody>
+  body: Record<string, unknown>
 ): Promise<JurnalHarian> {
   const jurnal = await jurnalRepo.findOneBy({ id });
   if (!jurnal) throw new NotFoundError("Jurnal");
@@ -89,6 +93,12 @@ export async function updateJurnal(
   if (role !== "mentor" && jurnal.pesertaId !== userId) {
     throw new ForbiddenError("Kamu tidak berhak mengubah jurnal ini");
   }
+
+  // Whitelist: pesertaId dan statusReview tidak bisa diubah lewat endpoint ini
+  const perubahan: Partial<JurnalInput> = {};
+  if (typeof body.kegiatan === "string") perubahan.kegiatan = body.kegiatan;
+  if (typeof body.hambatan === "string") perubahan.hambatan = body.hambatan;
+  if (typeof body.linkCommit === "string") perubahan.linkCommit = body.linkCommit;
 
   jurnalRepo.merge(jurnal, perubahan);
   return jurnalRepo.save(jurnal);
@@ -102,7 +112,17 @@ export async function updateStatusReview(id: number, statusReview: StatusReview)
   return jurnalRepo.save(jurnal);
 }
 
-export async function hapusJurnal(id: number): Promise<void> {
-  const hasil = await jurnalRepo.delete({ id });
-  if (hasil.affected === 0) throw new NotFoundError("Jurnal");
+export async function hapusJurnal(
+  id: number,
+  userId: number,
+  role: "peserta" | "mentor"
+): Promise<void> {
+  const jurnal = await jurnalRepo.findOneBy({ id });
+  if (!jurnal) throw new NotFoundError("Jurnal");
+
+  if (role !== "mentor" && jurnal.pesertaId !== userId) {
+    throw new ForbiddenError("Kamu tidak berhak menghapus jurnal ini");
+  }
+
+  await jurnalRepo.delete({ id });
 }

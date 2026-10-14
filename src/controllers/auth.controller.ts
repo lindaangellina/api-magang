@@ -2,10 +2,11 @@ import { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import { sukses, dibuat } from "../utils/response";
 import * as authService from "../services/auth.service";
+import { API_PREFIX } from "../config/constants";
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const hasil = await authService.register(req.body);
-  dibuat(res, hasil, "Registrasi berhasil");
+  dibuat(res, hasil, "Registrasi berhasil", `${API_PREFIX}/peserta/${hasil.id}`);
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
