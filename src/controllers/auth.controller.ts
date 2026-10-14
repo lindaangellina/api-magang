@@ -3,16 +3,20 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { sukses, dibuat } from "../utils/response";
 import * as authService from "../services/auth.service";
 import { API_PREFIX } from "../config/constants";
+import { ambilDto } from "../middlewares/validasi.middleware";
+import { RegisterDto, LoginDto } from "../dto/auth.dto";
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
-  const hasil = await authService.register(req.body);
-  dibuat(res, hasil, "Registrasi berhasil", `${API_PREFIX}/peserta/${hasil.id}`);
-});
+     const data = ambilDto<RegisterDto>(req);
+     const hasil = await authService.register(data);
+     dibuat(res, hasil, "Registrasi berhasil", `${API_PREFIX}/peserta/${hasil.id}`);
+   });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const hasil = await authService.login(req.body);
-  sukses(res, hasil, "Login berhasil");
-});
+     const data = ambilDto<LoginDto>(req);
+     const hasil = await authService.login(data);
+     sukses(res, hasil, "Login berhasil");
+   });
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
   const { refreshToken } = req.body;

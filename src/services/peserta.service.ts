@@ -2,8 +2,9 @@ import { FindOptionsOrder, FindOptionsWhere, ILike } from "typeorm";
 import { AppDataSource } from "../config/database.config";
 import { Peserta } from "../entities/Peserta.entity";
 import { PesertaBody } from "../types";
-import { NotFoundError, ConflictError } from "../utils/AppError";
+import { NotFoundError, ConflictError, ValidationError } from "../utils/AppError";
 import { ListQuery, escapeLike } from "../utils/pagination";
+import { UpdateProfilDto } from "../dto/peserta.dto";
 
 const repo = AppDataSource.getRepository(Peserta);
 
@@ -56,15 +57,24 @@ export async function buatPeserta(body: PesertaBody): Promise<Peserta> {
   return repo.save(baru);
 }
 
-export async function ubahProfil(id: number, body: Record<string, unknown>): Promise<Peserta> {
+// Ambil hanya field yang benar-benar diisi.
+// Dengan target ES2022, properti class yang belum diisi bisa muncul sebagai undefined,
+// jadi nilai undefined harus disaring.
+function hanyaYangDiisi<T extends object>(data: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, nilai]) => nilai !== undefined)
+  ) as Partial<T>;
+}
+
+export async function ubahProfil(id: number, data: UpdateProfilDto): Promise<Peserta> {
   const peserta = await repo.findOneBy({ id });
   if (!peserta) throw new NotFoundError("Peserta");
 
-  // Whitelist: hanya nama, sekolah, telepon. role, password, email, status diabaikan
-  const perubahan: Partial<Pick<Peserta, "nama" | "sekolah" | "telepon">> = {};
-  if (typeof body.nama === "string") perubahan.nama = body.nama.trim();
-  if (typeof body.sekolah === "string") perubahan.sekolah = body.sekolah.trim();
-  if (typeof body.telepon === "string") perubahan.telepon = body.telepon.trim();
+  // Whitelist sudah dijaga UpdateProfilDto: hanya nama, sekolah, telepon yang bisa sampai sini
+  const perubahan = hanyaYangDiisi(data);
+  if (Object.keys(perubahan).length === 0) {
+    throw new ValidationError([{ field: "body", pesan: "Minimal satu field harus diisi" }]);
+  }
 
   repo.merge(peserta, perubahan);
   return repo.save(peserta);

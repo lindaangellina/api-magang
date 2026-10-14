@@ -7,6 +7,8 @@ import { parseListQuery, buatMeta } from "../utils/pagination";
 import { SORT_PESERTA } from "../services/peserta.service";
 import { ForbiddenError } from "../utils/AppError";
 import { API_PREFIX } from "../config/constants";
+import { ambilDto } from "../middlewares/validasi.middleware";
+import { UpdateProfilDto } from "../dto/peserta.dto";
 
 export const getSemuaPeserta = asyncHandler(async (req: Request, res: Response) => {
   const lq = parseListQuery(req.query, SORT_PESERTA);
@@ -35,13 +37,15 @@ export const ubahPeserta = asyncHandler(async (req: Request, res: Response) => {
     throw new ForbiddenError("Kamu tidak berhak mengubah data peserta lain");
   }
 
-  const hasil = await pesertaService.ubahProfil(targetId, req.body ?? {});
+  const data = ambilDto<UpdateProfilDto>(req); // sudah divalidasi dan bersih
+  const hasil = await pesertaService.ubahProfil(targetId, data);
   sukses(res, tanpaPassword(hasil), "Peserta berhasil diubah");
 });
 
 // PATCH /me
 export const ubahProfilSaya = asyncHandler(async (req: Request, res: Response) => {
-  const hasil = await pesertaService.ubahProfil(req.user!.id, req.body ?? {});
+  const data = ambilDto<UpdateProfilDto>(req); // sudah divalidasi dan bersih
+  const hasil = await pesertaService.ubahProfil(req.user!.id, data);
   sukses(res, tanpaPassword(hasil), "Profil berhasil diubah");
 });
 

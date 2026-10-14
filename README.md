@@ -235,18 +235,32 @@ Health check memakai format response sendiri (`{ "status": ... }`), bukan format
 
 ## Perubahan Data yang Aman (Whitelist)
 
-Request body tidak pernah disalin langsung ke entity, karena itu membuka celah mass assignment (misalnya peserta mengirim `{"role":"mentor"}` untuk menaikkan haknya sendiri). Field yang boleh diubah dipilih eksplisit:
+Request body tidak pernah disalin langsung ke entity, karena itu membuka celah mass assignment (misalnya peserta mengirim `{"role":"mentor"}` untuk menaikkan haknya sendiri). Sejak Minggu 14, body divalidasi lewat DTO dengan whitelist: properti yang tidak dikenal DTO **ditolak dengan 422**, bukan lagi diabaikan diam-diam.
 
-- `PATCH /me` dan `PATCH /peserta/:id`: hanya `nama`, `sekolah`, `telepon`. Nilai `role`, `password`, `email`, dan `status` diabaikan.
+- `POST /auth/register`: `RegisterDto` (`nama`, `sekolah`, `email`, `password`). Password 8-72 karakter dan mengandung huruf dan angka. `role` selalu `peserta` dan tidak bisa diisi dari body.
+- `POST /auth/login`: `LoginDto` (`email`, `password`).
+- `PATCH /me` dan `PATCH /peserta/:id`: `UpdateProfilDto`, hanya `nama`, `sekolah`, `telepon` (format nomor Indonesia, misalnya `081234567890`). Field lain seperti `role`, `password`, `email`, dan `status` ditolak.
 - `POST /jurnal`: `pesertaId` diambil dari token dan `statusReview` selalu `belum`. Keduanya tidak bisa diisi dari body.
 - `PUT /jurnal/:id`: hanya `kegiatan`, `hambatan`, `linkCommit`. Status review hanya bisa diubah mentor lewat `PATCH /jurnal/:id/review`.
 
-Contoh: body `{"role":"mentor","telepon":"081234567890"}` pada `PATCH /me` hanya mengubah `telepon`, `role` tetap `peserta`.
+Contoh: body `{"nama":"Budi","role":"mentor"}` pada `PATCH /me` ditolak seluruhnya, `nama` pun tidak ikut tersimpan.
 ```bash
 curl -X PATCH http://localhost:3000/api/v1/me \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <accessToken>" \
-  -d '{"role":"mentor","telepon":"081234567890"}'
+  -d '{"nama":"Budi","role":"mentor"}'
+```
+Response (422):
+```json
+{
+  "sukses": false,
+  "error": {
+    "kode": "VALIDATION_ERROR",
+    "pesan": "Validasi gagal",
+    "detail": [{ "field": "role", "pesan": "Properti ini tidak diizinkan" }]
+  },
+  "requestId": "b12019db-e04c-4aa9-b3da-930d5797535c"
+}
 ```
 
 ## Pagination, Filtering, Sorting & Pencarian
@@ -346,7 +360,7 @@ Error:
 - [docs/api-conventions.md](docs/api-conventions.md): konvensi API tim
 - [docs/endpoint-audit.md](docs/endpoint-audit.md): audit endpoint, riwayat perubahan, dan masalah desain yang diketahui
 - [docs/error-codes.md](docs/error-codes.md): daftar kode error beserta contoh response
-- [docs/uji-skenario.md](docs/uji-skenario.md): hasil uji 14 skenario
+- [docs/uji-skenario.md](docs/uji-skenario.md): hasil uji 14 skenario dan tes tambahan Minggu 14
 
 ## Catatan: Apa itu ORM?
 
@@ -388,7 +402,7 @@ GET tidak boleh dipakai untuk menghapus data karena GET harus bersifat safe, art
 
 ### Kenapa TypeScript saja tidak cukup menjaga pintu masuk API
 
-Interface TypeScript hanya ada saat menulis kode dan dihapus total saat dikompilasi (type erasure), sedangkan `req.body` adalah hasil `JSON.parse` yang bisa berisi apa saja. Percobaan: `POST /api/v1/auth/register` dengan body `{"nama": 123, "email": true}` mengembalikan `422 VALIDATION_ERROR` dengan 4 error (nama, sekolah, email, password). Request itu tidak crash karena `validasiRegister` mengecek `typeof` tiap field secara manual, bukan karena TypeScript. Kelemahan cara manual: pengecekan harus ditulis ulang untuk setiap field di setiap endpoint dan mudah ada yang terlewat. Karena itu validasi diganti dengan DTO memakai `class-validator` dan `class-transformer`.
+Interface TypeScript hanya ada saat menulis kode dan dihapus total saat dikompilasi (type erasure), sedangkan `req.body` adalah hasil `JSON.parse` yang bisa berisi apa saja. Percobaan (saat itu masih memakai validasi manual): `POST /api/v1/auth/register` dengan body `{"nama": 123, "email": true}` mengembalikan `422 VALIDATION_ERROR` dengan 4 error (nama, sekolah, email, password). Request itu tidak crash karena `validasiRegister` mengecek `typeof` tiap field secara manual, bukan karena TypeScript. Kelemahan cara manual: pengecekan harus ditulis ulang untuk setiap field di setiap endpoint dan mudah ada yang terlewat. Karena itu validasi diganti dengan DTO memakai `class-validator` dan `class-transformer`.
 
 ### Apa beda Entity dan DTO?
 
@@ -415,3 +429,25 @@ Proyek ini memakai Express 5.2.1 (dicek dengan `npm ls express`).
 1. `req.query` bersifat read-only. Di proyek ini semua controller dan `parseListQuery` hanya membaca `req.query` dan tidak ada yang menimpanya, jadi aman. Tapi middleware validasi query yang akan dibuat harus menyimpan hasilnya di `req.validated`, bukan menimpa `req.query`.
 2. `req.body` bernilai `undefined` jika request tidak punya body. Middleware validasi di proyek ini sudah menanganinya lewat `req.body ?? {}`.
 3. Sintaks path route berubah: pola regex seperti `/:id(\d+)` dan parameter opsional `/:bulan?` tidak lagi didukung (opsional memakai `/{:bulan}`). Route di proyek ini memakai `/:id` biasa sehingga tidak terdampak, dan validasi tipe `id` nantinya diserahkan ke DTO.
+
+## Catatan: Middleware Validasi DTO (Minggu 14, Selasa)
+
+Validasi manual (if-else per field) diganti satu middleware `validasi(Dto, sumber)` di `src/middlewares/validasi.middleware.ts` yang bisa dipakai ulang untuk body, query, dan params.
+
+Cara kerjanya:
+1. `plainToInstance` mengubah objek biasa (hasil JSON) menjadi instance DTO.
+2. `validate` memeriksa aturan decorator dengan opsi `whitelist: true`, `forbidNonWhitelisted` (khusus body), dan `validationError: { target: false, value: false }`.
+3. `ratakan()` (`src/utils/validasi.util.ts`) mengubah hasilnya menjadi daftar `{ field, pesan }` sesuai format error Minggu 13.
+4. Hasil disimpan di `req.validated` (bukan menimpa `req.query`, karena read-only di Express 5), dan dibaca controller lewat `ambilDto<TipeDto>(req)`.
+
+Keputusan penting:
+- **Whitelist**: properti tanpa decorator dibuang, dan dengan `forbidNonWhitelisted` request yang memuat properti asing ditolak seluruhnya. Inilah yang menutup mass assignment.
+- **`value: false`**: tanpa opsi ini, setiap error validasi ikut membawa nilai input mentah. Pada percobaan Senin, `target` memuat password. Dengan `value: false`, password tidak muncul di response maupun log.
+- **Urutan middleware**: rate limit, authGuard, requireRole, validasi, controller. Validasi setelah auth supaya request tanpa token tidak memakai CPU dan tidak mendapat petunjuk tentang bentuk data.
+- **Body aneh**: array atau teks ditolak 422 "body harus berupa objek", JSON rusak 400 `INVALID_JSON`, dan body kosong dianggap `{}` (di Express 5 `req.body` bisa `undefined`).
+
+Jebakan: setiap properti DTO wajib punya minimal satu decorator (cukup `@IsOptional()` kalau opsional). Properti tanpa decorator dianggap tidak dikenal. Terbukti di eksperimen: `telepon` tanpa decorator menghasilkan 422 "Properti ini tidak diizinkan".
+
+Catatan lain:
+- Satu field yang tidak dikirim bisa menghasilkan beberapa pesan sekaligus (misalnya "minimal 3 karakter" dan "harus berupa teks"). Ini perilaku normal class-validator.
+- Validasi manual lama masih dipakai di `POST /peserta`, `POST` dan `PUT /jurnal`, serta refresh dan logout. Bagian itu belum dipindah ke DTO.

@@ -17,7 +17,7 @@ Semua skenario diuji lewat curl di Windows CMD terhadap `http://localhost:3000/a
 | 9 | `GET /peserta/9999` | 404 NOT_FOUND | 404, `NOT_FOUND` |
 | 10 | Body JSON rusak | 400 INVALID_JSON | 400, `INVALID_JSON` |
 | 11 | `GET /peserta?page=0&limit=1000&sortBy=password` | 200, dikoreksi, tidak bocor | 200, `page: 1`, `limit: 100`, 59 data, tidak ada kata "password" di response |
-| 12 | `PATCH /me` dengan `{"role":"mentor"}` | role tidak berubah | 200, `telepon` berubah, `role` tetap `"peserta"` |
+| 12 | `PATCH /me` dengan `{"role":"mentor"}` | role tidak berubah | Minggu 13: 200, `telepon` berubah, `role` tetap `"peserta"`. Sejak Minggu 14: 422 `VALIDATION_ERROR`, `role` ditolak dengan pesan "Properti ini tidak diizinkan" dan request tidak diproses |
 | 13 | PostgreSQL mati, panggil `/health/ready` | 503 | 503 `not_ready`; `/health` tetap 200; setelah database hidup `/ready` kembali 200 |
 | 14 | `Ctrl+C` saat server berjalan | Log shutdown rapi | `Menerima SIGINT...` lalu `Server dan koneksi database ditutup dengan rapi` |
 
@@ -29,6 +29,27 @@ Semua skenario diuji lewat curl di Windows CMD terhadap `http://localhost:3000/a
 | `GET /api/health` (path lama tanpa versi) | 404 `NOT_FOUND` |
 | `PATCH /me` mengubah `telepon` | Tersimpan, `updatedAt` ikut berubah |
 | `POST /jurnal` | `pesertaId` di response berasal dari token (59), `statusReview` otomatis `belum` |
+
+## Tes Tambahan Minggu 14 (Validasi DTO dan Whitelist)
+
+Diuji setelah `validasi(RegisterDto)`, `validasi(LoginDto)`, dan `validasi(UpdateProfilDto)` dipasang di route. Akun uji: peserta dengan id 60.
+
+| Tes | Hasil |
+|---|---|
+| `POST /auth/register` dengan body `{}` | 422, `detail` memuat semua field wajib (nama, sekolah, email, password) |
+| `POST /auth/register` dengan body `[]` | 422, "body harus berupa objek" |
+| `POST /auth/register` dengan `Content-Type: text/plain` | 422, body tidak terbaca sebagai JSON sehingga dianggap kosong |
+| `POST /auth/register` dengan JSON rusak | 400 `INVALID_JSON` |
+| `POST /auth/register` dengan password `"123"` | 422, hanya field `password` (huruf dan angka, minimal 8 karakter). Nilai `123` tidak muncul di response maupun log |
+| `PATCH /me` dengan `{"role":"mentor"}` | 422, `role` "Properti ini tidak diizinkan" |
+| `PATCH /me` dengan `{"nama":"Budi","role":"mentor"}` | 422, seluruh request ditolak walaupun `nama` valid |
+| `PATCH /me` dengan `{"nama":"Budi"}` | 200. `GET /me` menunjukkan `role` tetap `"peserta"` |
+| `PATCH /me` dengan `{"telepon":"081234567890"}` | 200, tersimpan |
+| `PATCH /me` dengan `{"telepon":"abc"}` | 422, "Format nomor telepon Indonesia tidak valid" |
+| Eksperimen: decorator `telepon` di `UpdateProfilDto` dihapus sementara, lalu `PATCH /me` dengan `{"telepon":"081234567890"}` | 422, "Properti ini tidak diizinkan". Properti DTO tanpa decorator dianggap tidak dikenal. Decorator sudah dikembalikan |
+| `PATCH /peserta/60` (milik sendiri) dengan `{"role":"mentor"}` | 422, `role` ditolak |
+| `PATCH /peserta/60` (milik sendiri) dengan `{"nama":"Budi Dua"}` | 200 |
+| `PATCH /peserta/1` (milik peserta lain) | 403 `FORBIDDEN` |
 
 ## Perintah yang Dipakai
 
@@ -66,7 +87,7 @@ curl -i -X POST http://localhost:3000/api/v1/peserta -H "Content-Type: applicati
 # 11
 curl "http://localhost:3000/api/v1/peserta?page=0&limit=1000&sortBy=password"
 
-# 12
+# 12 (sejak Minggu 14, body yang memuat role ditolak 422)
 curl -i -X PATCH http://localhost:3000/api/v1/me -H "Content-Type: application/json" -H "Authorization: Bearer TOKEN" -d '{"role":"mentor","telepon":"081200000000"}'
 
 # 13: Services > postgresql-x64-18 > Stop
@@ -76,9 +97,21 @@ curl -i http://localhost:3000/api/v1/health
 # 14: npx ts-node src/index.ts, lalu tekan Ctrl+C
 ```
 
+Perintah tes Minggu 14 (Windows CMD, `-s -w` supaya output hanya body dan kode status):
+
+```
+set TOKEN=<accessToken dari login>
+
+curl.exe -s -w "\nHTTP %{http_code}\n" -X PATCH http://localhost:3000/api/v1/me -H "Content-Type: application/json" -H "Authorization: Bearer %TOKEN%" -d "{\"role\":\"mentor\"}"
+curl.exe -s -w "\nHTTP %{http_code}\n" -X PATCH http://localhost:3000/api/v1/me -H "Content-Type: application/json" -H "Authorization: Bearer %TOKEN%" -d "{\"nama\":\"Budi\"}"
+curl.exe -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:3000/api/v1/auth/register -H "Content-Type: application/json" -d "[]"
+curl.exe -s -w "\nHTTP %{http_code}\n" -X PATCH http://localhost:3000/api/v1/peserta/1 -H "Content-Type: application/json" -H "Authorization: Bearer %TOKEN%" -d "{\"nama\":\"Coba Ubah\"}"
+```
+
 ## Catatan Pelaksanaan
 
 - Skenario 6 membutuhkan `JWT_EXPIRES_IN` sementara 30 detik. Nilainya sudah dikembalikan ke `15m` setelah tes.
 - Skenario 4 dijalankan setelah server di-restart agar hitungan rate limit mulai dari nol. Setelah terkena 429, login dari IP yang sama terkunci sampai 15 menit atau sampai server di-restart.
 - Skenario 13 hanya membuktikan `/health/ready`. Perilaku endpoint biasa saat database mati belum diuji (lihat "Masalah Desain yang Diketahui" di `endpoint-audit.md`).
 - Skenario 14 dijalankan lewat `npx ts-node src/index.ts`, karena `nodemon` menangani `Ctrl+C` sendiri.
+- Tes Minggu 14: variabel `TOKEN` dari `set TOKEN=...` hanya berlaku di jendela CMD yang sama. Di jendela baru, `%TOKEN%` terkirim mentah dan menghasilkan 401 `INVALID_TOKEN` ("jwt malformed"). Access token berlaku 15 menit, jadi login ulang jika menerima 401 `TOKEN_EXPIRED`.
