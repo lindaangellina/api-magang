@@ -383,3 +383,35 @@ Fungsinya:
 DELETE harus idempotent karena hasil akhirnya harus sama baik dipanggil satu kali maupun berkali-kali. Begitu `DELETE /peserta/1` dijalankan dan peserta itu terhapus, memanggilnya lagi seharusnya tidak menimbulkan efek tambahan (paling hanya mengembalikan 404 karena datanya sudah tidak ada, bukan menghapus sesuatu yang lain). Ini penting untuk keandalan: kalau koneksi putus dan client mengirim ulang request yang sama, sistem tidak akan rusak karena perintah dijalankan dua kali. Keputusan tim: DELETE untuk data yang sudah tidak ada mengembalikan 404.
 
 GET tidak boleh dipakai untuk menghapus data karena GET harus bersifat safe, artinya tidak mengubah apa pun di server. Browser, crawler mesin pencari, dan fitur prefetch semuanya mengasumsikan GET aman dipanggil kapan saja tanpa izin eksplisit dari pengguna. Kalau ada endpoint seperti `GET /peserta/1/hapus`, sebuah link yang di-prefetch otomatis oleh browser bisa menghapus data sungguhan tanpa ada yang benar-benar menekan tombol apa pun. Ini pelanggaran serius terhadap asumsi dasar HTTP.
+
+## Catatan: Validasi Input & DTO (Minggu 14, Senin)
+
+### Kenapa TypeScript saja tidak cukup menjaga pintu masuk API
+
+Interface TypeScript hanya ada saat menulis kode dan dihapus total saat dikompilasi (type erasure), sedangkan `req.body` adalah hasil `JSON.parse` yang bisa berisi apa saja. Percobaan: `POST /api/v1/auth/register` dengan body `{"nama": 123, "email": true}` mengembalikan `422 VALIDATION_ERROR` dengan 4 error (nama, sekolah, email, password). Request itu tidak crash karena `validasiRegister` mengecek `typeof` tiap field secara manual, bukan karena TypeScript. Kelemahan cara manual: pengecekan harus ditulis ulang untuk setiap field di setiap endpoint dan mudah ada yang terlewat. Karena itu validasi diganti dengan DTO memakai `class-validator` dan `class-transformer`.
+
+### Apa beda Entity dan DTO?
+
+Entity adalah class yang mewakili bentuk tabel di database, jadi isinya lengkap seperti id, password hash, role, dan createdAt, dan ia berubah kalau skema database berubah. DTO adalah kontrak API, yaitu bentuk data yang boleh masuk atau keluar, dan satu entity bisa punya banyak DTO (Create, Update, Response). Entity Peserta tidak boleh dipakai langsung sebagai body register karena client bisa ikut mengirim field yang tidak boleh ia atur, misalnya id atau role (mass assignment). Selain itu, kalau nama kolom di database berubah, kontrak API ikut rusak, dan aturan validasi Register tidak bisa dibedakan dari Update padahal entity-nya sama. Dengan `RegisterDto`, hanya nama, sekolah, email, dan password yang boleh masuk, masing-masing dengan aturan validasinya sendiri.
+
+### Hasil percobaan `validate()` (`src/scripts/coba-dto.ts`)
+
+| Payload | Jumlah error | Properti yang gagal |
+|---|---|---|
+| a. valid sempurna | 0 | - |
+| b. nama terlalu pendek | 1 | `nama` |
+| c. email salah format | 1 | `email` |
+| d. password tanpa angka | 1 | `password` |
+| e. properti tambahan `role` | 0 | - |
+
+Payload a dan e menghasilkan array kosong. Properti `role: "mentor"` pada payload e tidak ditolak, hanya diabaikan oleh validator, dan masih ada di objek hasil `plainToInstance`. Jadi tanpa whitelist, field asing bisa ikut terbawa ke service. Struktur mentah `ValidationError` juga memuat `target` dan `value` (termasuk password), sehingga tidak boleh diteruskan mentah ke client.
+
+`MaxLength(72)` dipakai pada password karena bcrypt hanya memproses 72 byte pertama. Aturan kekuatan password tidak dipasang di `LoginDto` supaya akun lama tidak terkunci dan aturan password tidak bocor ke penyerang.
+
+### Perbedaan Express 4 dan 5 yang berpengaruh pada proyek ini
+
+Proyek ini memakai Express 5.2.1 (dicek dengan `npm ls express`).
+
+1. `req.query` bersifat read-only. Di proyek ini semua controller dan `parseListQuery` hanya membaca `req.query` dan tidak ada yang menimpanya, jadi aman. Tapi middleware validasi query yang akan dibuat harus menyimpan hasilnya di `req.validated`, bukan menimpa `req.query`.
+2. `req.body` bernilai `undefined` jika request tidak punya body. Middleware validasi di proyek ini sudah menanganinya lewat `req.body ?? {}`.
+3. Sintaks path route berubah: pola regex seperti `/:id(\d+)` dan parameter opsional `/:bulan?` tidak lagi didukung (opsional memakai `/{:bulan}`). Route di proyek ini memakai `/:id` biasa sehingga tidak terdampak, dan validasi tipe `id` nantinya diserahkan ke DTO.
