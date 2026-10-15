@@ -16,7 +16,7 @@ Semua skenario diuji lewat curl di Windows CMD terhadap `http://localhost:3000/a
 | 8 | Peserta edit jurnal milik peserta lain | 403 FORBIDDEN | 403, `FORBIDDEN` ("Kamu tidak berhak mengubah jurnal ini") |
 | 9 | `GET /peserta/9999` | 404 NOT_FOUND | 404, `NOT_FOUND` |
 | 10 | Body JSON rusak | 400 INVALID_JSON | 400, `INVALID_JSON` |
-| 11 | `GET /peserta?page=0&limit=1000&sortBy=password` | 200, dikoreksi, tidak bocor | 200, `page: 1`, `limit: 100`, 59 data, tidak ada kata "password" di response |
+| 11 | `GET /peserta?page=0&limit=1000&sortBy=password` | Minggu 13: 200, dikoreksi, tidak bocor. Sejak Minggu 14: 422 | Minggu 13: 200, `page: 1`, `limit: 100`, 59 data, tidak ada kata "password" di response. Sejak Minggu 14: 422 `VALIDATION_ERROR`, tiap parameter diuji terpisah dan masing-masing ditolak (lihat tabel Minggu 14, Rabu) |
 | 12 | `PATCH /me` dengan `{"role":"mentor"}` | role tidak berubah | Minggu 13: 200, `telepon` berubah, `role` tetap `"peserta"`. Sejak Minggu 14: 422 `VALIDATION_ERROR`, `role` ditolak dengan pesan "Properti ini tidak diizinkan" dan request tidak diproses |
 | 13 | PostgreSQL mati, panggil `/health/ready` | 503 | 503 `not_ready`; `/health` tetap 200; setelah database hidup `/ready` kembali 200 |
 | 14 | `Ctrl+C` saat server berjalan | Log shutdown rapi | `Menerima SIGINT...` lalu `Server dan koneksi database ditutup dengan rapi` |
@@ -50,6 +50,33 @@ Diuji setelah `validasi(RegisterDto)`, `validasi(LoginDto)`, dan `validasi(Updat
 | `PATCH /peserta/60` (milik sendiri) dengan `{"role":"mentor"}` | 422, `role` ditolak |
 | `PATCH /peserta/60` (milik sendiri) dengan `{"nama":"Budi Dua"}` | 200 |
 | `PATCH /peserta/1` (milik peserta lain) | 403 `FORBIDDEN` |
+
+## Tes Tambahan Minggu 14 (DTO Query, Params, dan Transformasi)
+
+Diuji setelah `IdParamDto`, `ListPesertaQueryDto`, dan `ListJurnalQueryDto` dipasang di route, dan `parseListQuery` dihapus. Tes jurnal khusus mentor memakai akun uji (id 60) yang role-nya diubah sementara menjadi `mentor` lewat database, lalu dikembalikan menjadi `peserta`.
+
+| Tes | Hasil |
+|---|---|
+| `GET /peserta?page=0` | 422, "page minimal 1" |
+| `GET /peserta?page=abc` | 422, "page minimal 1" dan "page harus berupa bilangan bulat" |
+| `GET /peserta?limit=1000` | 422, "limit maksimal 100" |
+| `GET /peserta?limit=0` | 422, "limit minimal 1" |
+| `GET /peserta?sortBy=password` | 422, "sortBy harus salah satu dari: nama, fase, createdAt" |
+| `GET /peserta?order=sembarang` | 422, "order harus ASC atau DESC" |
+| `GET /peserta?sekolah=a&sekolah=b` | 422, "sekolah maksimal 100 karakter" dan "sekolah harus berupa teks" |
+| `GET /peserta?q=%20%20%20` (spasi saja) | 200, `q` dipangkas menjadi kosong dan tidak dipakai |
+| `GET /peserta/abc` | 422, "id minimal 1" dan "id harus berupa bilangan bulat" |
+| `GET /peserta/0` | 422, "id minimal 1" |
+| `GET /peserta/60` | 200 |
+| `GET /jurnal/abc` | 422, "id minimal 1" dan "id harus berupa bilangan bulat" |
+| Register dengan email `"  Budi@Mail.COM  "` | 201, email tersimpan `budi@mail.com` |
+| Register lagi dengan email `budi@mail.com` | 409 `CONFLICT` |
+| `GET /jurnal?limit=1` (mentor) | 200, `total` 3 |
+| `GET /jurnal?belumDireview=true` (mentor) | 200, `total` 2, data berstatus `belum` |
+| `GET /jurnal?belumDireview=false` (mentor) | 200, `total` 1, data berstatus `sudah` (2 + 1 = 3) |
+| `GET /jurnal?belumDireview=abc` (mentor) | 422, "belumDireview harus true atau false" |
+| `GET /jurnal?belumDireview=true&statusReview=sudah` (mentor) | 422, "belumDireview bertentangan dengan statusReview" |
+| `GET /jurnal?from=2026-02-31` (mentor) | 422, "from bukan tanggal yang valid" |
 
 ## Perintah yang Dipakai
 
@@ -108,6 +135,18 @@ curl.exe -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:3000/api/v1/auth
 curl.exe -s -w "\nHTTP %{http_code}\n" -X PATCH http://localhost:3000/api/v1/peserta/1 -H "Content-Type: application/json" -H "Authorization: Bearer %TOKEN%" -d "{\"nama\":\"Coba Ubah\"}"
 ```
 
+Perintah tes Minggu 14, Rabu (tanda kutip pada URL wajib karena ada `&`):
+
+```
+curl.exe -s -w "\nHTTP %{http_code}\n" "http://localhost:3000/api/v1/peserta?page=0"
+curl.exe -s -w "\nHTTP %{http_code}\n" "http://localhost:3000/api/v1/peserta?sekolah=a&sekolah=b"
+curl.exe -s -o nul -w "HTTP %{http_code}\n" "http://localhost:3000/api/v1/peserta?q=%20%20%20"
+curl.exe -s -w "\nHTTP %{http_code}\n" http://localhost:3000/api/v1/peserta/abc
+curl.exe -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:3000/api/v1/auth/register -H "Content-Type: application/json" -d "{\"nama\":\"Tes Tiga\",\"sekolah\":\"SMK Tes\",\"email\":\"  Budi@Mail.COM  \",\"password\":\"rahasia123\"}"
+curl.exe -s -w "\nHTTP %{http_code}\n" "http://localhost:3000/api/v1/jurnal?belumDireview=true&limit=1" -H "Authorization: Bearer %TOKEN_MENTOR%"
+curl.exe -s -w "\nHTTP %{http_code}\n" "http://localhost:3000/api/v1/jurnal?belumDireview=false&limit=1" -H "Authorization: Bearer %TOKEN_MENTOR%"
+```
+
 ## Catatan Pelaksanaan
 
 - Skenario 6 membutuhkan `JWT_EXPIRES_IN` sementara 30 detik. Nilainya sudah dikembalikan ke `15m` setelah tes.
@@ -115,3 +154,4 @@ curl.exe -s -w "\nHTTP %{http_code}\n" -X PATCH http://localhost:3000/api/v1/pes
 - Skenario 13 hanya membuktikan `/health/ready`. Perilaku endpoint biasa saat database mati belum diuji (lihat "Masalah Desain yang Diketahui" di `endpoint-audit.md`).
 - Skenario 14 dijalankan lewat `npx ts-node src/index.ts`, karena `nodemon` menangani `Ctrl+C` sendiri.
 - Tes Minggu 14: variabel `TOKEN` dari `set TOKEN=...` hanya berlaku di jendela CMD yang sama. Di jendela baru, `%TOKEN%` terkirim mentah dan menghasilkan 401 `INVALID_TOKEN` ("jwt malformed"). Access token berlaku 15 menit, jadi login ulang jika menerima 401 `TOKEN_EXPIRED`.
+- Tes jurnal khusus mentor (Minggu 14, Rabu) memakai akun uji id 60 yang role-nya diubah sementara lewat database (`UPDATE peserta SET role='mentor' WHERE id=60;`), lalu dikembalikan (`... SET role='peserta' ...`). Token harus diambil dengan login ulang setelah perubahan role, karena role tersimpan di dalam token.

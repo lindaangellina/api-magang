@@ -2,25 +2,42 @@ import { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import { sukses, suksesDenganTotal, suksesDenganMeta, dibuat } from "../utils/response";
 import { jurnalService } from "../services";
-import { parseListQuery, buatMeta } from "../utils/pagination";
-import { SORT_JURNAL } from "../services/jurnal.service";
+import { buatMeta } from "../utils/pagination";
 import { StatusReview } from "../types";
+import { ValidationError } from "../utils/AppError";
 import { API_PREFIX } from "../config/constants";
+import { ambilDto } from "../middlewares/validasi.middleware";
+import { IdParamDto } from "../dto/common.dto";
+import { ListJurnalQueryDto } from "../dto/jurnal.dto";
 
 export const getSemuaJurnal = asyncHandler(async (req: Request, res: Response) => {
-  const lq = parseListQuery(req.query, SORT_JURNAL, "createdAt");
-  const pesertaId = req.query.pesertaId ? Number(req.query.pesertaId) : undefined;
-  const statusReview =
-    typeof req.query.statusReview === "string" ? (req.query.statusReview as StatusReview) : undefined;
-  const from = typeof req.query.from === "string" ? req.query.from : undefined;
-  const to = typeof req.query.to === "string" ? req.query.to : undefined;
+  const query = ambilDto<ListJurnalQueryDto>(req, "query");
 
-  const { data, total } = await jurnalService.daftarJurnal(lq, { pesertaId, statusReview, from, to });
-  suksesDenganMeta(res, data, buatMeta(lq.page, lq.limit, total), "Daftar jurnal berhasil diambil");
+  // belumDireview=true setara statusReview=belum, belumDireview=false setara statusReview=sudah.
+  // Kalau keduanya dikirim dan saling bertentangan, tolak (jangan pilih salah satu diam-diam).
+  let statusReview: StatusReview | undefined = query.statusReview;
+  if (query.belumDireview !== undefined) {
+    const dariBoolean: StatusReview = query.belumDireview ? "belum" : "sudah";
+    if (statusReview !== undefined && statusReview !== dariBoolean) {
+      throw new ValidationError([
+        { field: "belumDireview", pesan: "belumDireview bertentangan dengan statusReview" },
+      ]);
+    }
+    statusReview = dariBoolean;
+  }
+
+  const { data, total } = await jurnalService.daftarJurnal(query, {
+    pesertaId: query.pesertaId,
+    statusReview,
+    from: query.from,
+    to: query.to,
+  });
+  suksesDenganMeta(res, data, buatMeta(query.page, query.limit, total), "Daftar jurnal berhasil diambil");
 });
 
 export const getJurnalById = asyncHandler(async (req: Request, res: Response) => {
-  const jurnal = await jurnalService.getJurnalById(Number(req.params.id));
+  const { id } = ambilDto<IdParamDto>(req, "params");
+  const jurnal = await jurnalService.getJurnalById(id);
   sukses(res, jurnal, "Detail jurnal berhasil diambil");
 });
 
@@ -30,8 +47,9 @@ export const buatJurnal = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateJurnal = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = ambilDto<IdParamDto>(req, "params");
   const hasil = await jurnalService.updateJurnal(
-    Number(req.params.id),
+    id,
     req.user!.id,
     req.user!.role,
     req.body ?? {}
@@ -40,13 +58,15 @@ export const updateJurnal = asyncHandler(async (req: Request, res: Response) => 
 });
 
 export const updateStatusReview = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = ambilDto<IdParamDto>(req, "params");
   const statusReview = req.body?.statusReview ?? "sudah";
-  const hasil = await jurnalService.updateStatusReview(Number(req.params.id), statusReview);
+  const hasil = await jurnalService.updateStatusReview(id, statusReview);
   sukses(res, hasil, "Status review berhasil diperbarui");
 });
 
 export const hapusJurnal = asyncHandler(async (req: Request, res: Response) => {
-  await jurnalService.hapusJurnal(Number(req.params.id), req.user!.id, req.user!.role);
+  const { id } = ambilDto<IdParamDto>(req, "params");
+  await jurnalService.hapusJurnal(id, req.user!.id, req.user!.role);
   res.status(204).send();
 });
 

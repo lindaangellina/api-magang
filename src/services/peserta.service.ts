@@ -8,8 +8,6 @@ import { UpdateProfilDto } from "../dto/peserta.dto";
 
 const repo = AppDataSource.getRepository(Peserta);
 
-export const SORT_PESERTA = ["nama", "fase", "createdAt"] as const;
-
 interface FilterPeserta {
   sekolah?: string;
   fase?: number;

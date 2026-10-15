@@ -237,9 +237,9 @@ Health check memakai format response sendiri (`{ "status": ... }`), bukan format
 
 Request body tidak pernah disalin langsung ke entity, karena itu membuka celah mass assignment (misalnya peserta mengirim `{"role":"mentor"}` untuk menaikkan haknya sendiri). Sejak Minggu 14, body divalidasi lewat DTO dengan whitelist: properti yang tidak dikenal DTO **ditolak dengan 422**, bukan lagi diabaikan diam-diam.
 
-- `POST /auth/register`: `RegisterDto` (`nama`, `sekolah`, `email`, `password`). Password 8-72 karakter dan mengandung huruf dan angka. `role` selalu `peserta` dan tidak bisa diisi dari body.
+- `POST /auth/register`: `RegisterDto` (`nama`, `sekolah`, `email`, `password`). Password 8-72 karakter dan mengandung huruf dan angka. `role` selalu `peserta` dan tidak bisa diisi dari body. Nama, sekolah, dan email di-trim, dan email diubah ke huruf kecil sebelum divalidasi.
 - `POST /auth/login`: `LoginDto` (`email`, `password`).
-- `PATCH /me` dan `PATCH /peserta/:id`: `UpdateProfilDto`, hanya `nama`, `sekolah`, `telepon` (format nomor Indonesia, misalnya `081234567890`). Field lain seperti `role`, `password`, `email`, dan `status` ditolak.
+- `PATCH /me` dan `PATCH /peserta/:id`: `UpdateProfilDto`, hanya `nama`, `sekolah`, `telepon` (format nomor Indonesia, misalnya `081234567890`). Field lain seperti `role`, `password`, `email`, dan `status` ditolak. Teks di-trim sebelum divalidasi.
 - `POST /jurnal`: `pesertaId` diambil dari token dan `statusReview` selalu `belum`. Keduanya tidak bisa diisi dari body.
 - `PUT /jurnal/:id`: hanya `kegiatan`, `hambatan`, `linkCommit`. Status review hanya bisa diubah mentor lewat `PATCH /jurnal/:id/review`.
 
@@ -280,7 +280,7 @@ Filter dan kolom `sortBy` yang diizinkan:
 | Endpoint | Filter | sortBy yang diizinkan |
 |---|---|---|
 | GET /api/v1/peserta | `sekolah`, `fase`, `q` | `nama`, `fase`, `createdAt` |
-| GET /api/v1/jurnal | `pesertaId`, `statusReview`, `from`, `to` (format `YYYY-MM-DD`) | `createdAt`, `statusReview` |
+| GET /api/v1/jurnal | `pesertaId`, `statusReview`, `belumDireview` (`true` = belum, `false` = sudah), `from`, `to` (format `YYYY-MM-DD`) | `createdAt`, `statusReview` |
 
 Contoh:
 ```bash
@@ -297,9 +297,11 @@ Response memuat `meta`:
 }
 ```
 
-Keamanan input:
-- `page` dan `limit` yang tidak valid (0, negatif, huruf) otomatis diganti nilai default, dan `limit` dibatasi maksimal 100.
-- `sortBy` memakai whitelist. Nilai di luar daftar (misalnya `password` atau potongan SQL) diabaikan dan memakai urutan default.
+Keamanan input (sejak Minggu 14 divalidasi lewat `ListQueryDto` dan turunannya, bukan lagi dikoreksi diam-diam):
+- `page` dan `limit` yang tidak valid (0, negatif, huruf, atau `limit` di atas 100) **ditolak dengan 422** dan pesan per field, misalnya "page minimal 1" atau "limit maksimal 100".
+- `sortBy` memakai whitelist (`IsIn`). Nilai di luar daftar (misalnya `password` atau potongan SQL) ditolak 422, begitu juga `order` selain `ASC` atau `DESC` (huruf besar atau kecil sama saja).
+- Parameter ganda (misalnya `?sekolah=a&sekolah=b`) ditolak 422 karena bukan teks tunggal.
+- `q` yang hanya berisi spasi dipangkas menjadi kosong dan dianggap tanpa pencarian.
 - Karakter wildcard `%` dan `_` pada `q` di-escape, sehingga `q=%` tidak mengembalikan semua data.
 - Halaman di luar jangkauan mengembalikan `data: []` dengan status tetap `200`.
 
@@ -451,3 +453,64 @@ Jebakan: setiap properti DTO wajib punya minimal satu decorator (cukup `@IsOptio
 Catatan lain:
 - Satu field yang tidak dikirim bisa menghasilkan beberapa pesan sekaligus (misalnya "minimal 3 karakter" dan "harus berupa teks"). Ini perilaku normal class-validator.
 - Validasi manual lama masih dipakai di `POST /peserta`, `POST` dan `PUT /jurnal`, serta refresh dan logout. Bagian itu belum dipindah ke DTO.
+
+## Catatan: Transformasi Tipe & DTO Query/Params (Minggu 14, Rabu)
+
+### Validasi vs sanitasi
+
+Validasi memeriksa apakah data sesuai aturan (salah = ditolak). Sanitasi membersihkan atau menormalkan data sebelum diperiksa, jadi dijalankan lebih dulu lewat `class-transformer`. Decorator yang bisa dipakai ulang ada di `src/dto/decorators/transform.ts`:
+
+- `@Trim()`: `"  Budi  "` menjadi `"Budi"`. Nama berisi spasi saja menjadi `""` lalu gagal di `MinLength`.
+- `@KeHurufKecil()` dan `@KeHurufBesar()`: email dinormalkan supaya `Budi@Mail.com` dan `budi@mail.com` tidak menjadi dua akun. Password sengaja tidak di-trim karena spasi bisa menjadi bagian dari password.
+- `@KeBoolean()`: mengubah teks `"true"` dan `"false"` menjadi boolean, dan membiarkan nilai lain supaya ditolak `@IsBoolean`.
+- `@Type(() => Number)`: mengubah `"5"` menjadi `5`, dan `"abc"` menjadi `NaN` yang ditolak `@IsInt`.
+
+### Kenapa `@Type(() => Boolean)` berbahaya untuk query string
+
+Semua nilai di URL adalah teks, dan `Boolean("false")` bernilai `true` karena string yang tidak kosong selalu dianggap true. Jadi `?aktif=false` akan dibaca sebagai true. Karena itu dibuat `@KeBoolean()` yang membaca teks `"true"` dan `"false"` secara eksplisit. Buktinya di proyek ini: `GET /jurnal?belumDireview=false` mengembalikan jurnal yang sudah direview, bukan yang belum.
+
+### DTO untuk route params dan query string
+
+- `IdParamDto` (`src/dto/common.dto.ts`) dipasang di semua route `/:id` pada peserta dan jurnal. Semua `Number(req.params.id)` di controller dihapus, dan controller memakai `ambilDto<IdParamDto>(req, "params")`. `GET /peserta/abc` sekarang ditolak 422 dengan pesan jelas, bukan menjadi `NaN` lalu error database.
+- `ListQueryDto` (`page`, `limit`, `order`, `q`) menjadi dasar `ListPesertaQueryDto` dan `ListJurnalQueryDto` lewat pewarisan (`sortBy`, filter, dan `belumDireview` ditambahkan per resource).
+- `parseListQuery` dari Minggu 13 dihapus. `buatMeta` dan `escapeLike` di `src/utils/pagination.ts` tetap dipakai.
+- Tanggal `from` dan `to` divalidasi dengan `@Matches` (hanya `YYYY-MM-DD`) dan `IsDateString({ strict: true })`. `IsDateString` saja menerima juga `2026-09-01T10:00:00Z`, padahal service membuat `${from}T00:00:00`, sehingga query bisa rusak.
+
+### Hasil percobaan: sebelum dan sesudah (`GET /api/v1/peserta`)
+
+| Input | Sebelum (Minggu 13) | Sesudah (Minggu 14) |
+|---|---|---|
+| `page=0` | 200, page jadi 1 | 422 "page minimal 1" |
+| `page=abc` | 200, page jadi 1 | 422 "page minimal 1" dan "page harus berupa bilangan bulat" |
+| `limit=1000` | 200, limit jadi 100 | 422 "limit maksimal 100" |
+| `limit=0` | 200, diganti nilai default | 422 "limit minimal 1" |
+| `sortBy=password` | 200, diganti `createdAt` | 422 "sortBy harus salah satu dari: nama, fase, createdAt" |
+| `order=sembarang` | 200, diganti `DESC` | 422 "order harus ASC atau DESC" |
+| `sekolah=a&sekolah=b` | 200, filter diabaikan diam-diam | 422 "sekolah maksimal 100 karakter" dan "sekolah harus berupa teks" |
+| `q` berisi spasi saja | 200, filter diabaikan | 200, `q` dipangkas menjadi kosong dan tidak dipakai |
+
+Kolom "sebelum" berasal dari perilaku `parseListQuery` Minggu 13, kolom "sesudah" dari hasil uji nyata.
+
+### Filter `?belumDireview=` pada `GET /jurnal`
+
+`belumDireview=true` setara `statusReview=belum`, dan `belumDireview=false` setara `statusReview=sudah`. Kalau keduanya dikirim dan saling bertentangan, request ditolak 422 supaya tidak ada yang dipilih diam-diam. Hasil uji (login mentor, data saat itu):
+
+| Request | Hasil |
+|---|---|
+| `GET /jurnal` | 200, `total` 3 |
+| `belumDireview=true` | 200, `total` 2, data berstatus `belum` |
+| `belumDireview=false` | 200, `total` 1, data berstatus `sudah` |
+| `belumDireview=abc` | 422 "belumDireview harus true atau false" |
+| `belumDireview=true&statusReview=sudah` | 422 "belumDireview bertentangan dengan statusReview" |
+
+`total` dari `true` (2) ditambah `total` dari `false` (1) sama dengan total semua jurnal (3). Itu membuktikan `"false"` benar-benar bermakna false.
+
+### Normalisasi email
+
+Register dengan email `"  Budi@Mail.COM  "` berhasil (201) dan tersimpan sebagai `budi@mail.com`. Register lagi dengan `budi@mail.com` ditolak 409 `CONFLICT`, sehingga tidak ada akun ganda yang hanya beda huruf besar atau spasi.
+
+### Kenapa input aneh ditolak, bukan dikoreksi diam-diam
+
+Koreksi diam-diam membuat frontend tidak pernah tahu kalau ia salah, sehingga bug tersembunyi. Dengan menolak lewat 422 dan pesan per field, bug frontend ketahuan saat development. Keputusan tim: tolak. Konsekuensinya, aturan 400 dan 422 di `docs/api-conventions.md` disederhanakan: semua kegagalan validasi DTO (body, query, params) adalah 422, dan 400 hanya untuk body yang tidak bisa di-parse (`INVALID_JSON`).
+
+Belum dipindah ke DTO: body `POST /peserta`, `POST` dan `PUT /jurnal`, serta `PATCH /jurnal/:id/review`.

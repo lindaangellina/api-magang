@@ -9,8 +9,6 @@ import { ListQuery } from "../utils/pagination";
 const jurnalRepo = AppDataSource.getRepository(JurnalHarian);
 const pesertaRepo = AppDataSource.getRepository(Peserta);
 
-export const SORT_JURNAL = ["createdAt", "statusReview"] as const;
-
 interface FilterJurnal {
   pesertaId?: number;
   statusReview?: StatusReview;

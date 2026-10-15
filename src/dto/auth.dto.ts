@@ -1,4 +1,3 @@
-// src/dto/auth.dto.ts
 import {
   IsEmail,
   IsNotEmpty,
@@ -7,24 +6,30 @@ import {
   MaxLength,
   MinLength,
 } from "class-validator";
+import { KeHurufKecil, Trim } from "./decorators/transform";
 
 export class RegisterDto {
+  @Trim()
   @IsString({ message: "Nama harus berupa teks" })
   @MinLength(3, { message: "Nama minimal 3 karakter" })
   @MaxLength(100, { message: "Nama maksimal 100 karakter" })
   nama!: string;
 
+  // Trim juga di sini: tanpa trim, "   " (3 spasi) lolos MinLength(3)
+  @Trim()
   @IsString({ message: "Sekolah harus berupa teks" })
   @MinLength(3, { message: "Sekolah minimal 3 karakter" })
   @MaxLength(100, { message: "Sekolah maksimal 100 karakter" })
   sekolah!: string;
 
+  // Email dinormalkan supaya "Budi@Mail.com" dan "budi@mail.com" tidak jadi dua akun
+  @Trim()
+  @KeHurufKecil()
   @IsEmail({}, { message: "Format email tidak valid" })
   email!: string;
 
-  // MaxLength(72): bcrypt hanya memproses 72 byte pertama. Password yang lebih
-  // panjang dipotong diam-diam, jadi kita batasi supaya tidak membingungkan
-  // dan menolak input raksasa.
+  // Password TIDAK di-trim: spasi di awal atau akhir adalah bagian dari password.
+  // MaxLength(72): bcrypt hanya memproses 72 byte pertama.
   @IsString({ message: "Password harus berupa teks" })
   @MinLength(8, { message: "Password minimal 8 karakter" })
   @MaxLength(72, { message: "Password maksimal 72 karakter" })
@@ -35,11 +40,14 @@ export class RegisterDto {
 }
 
 export class LoginDto {
+  // Harus dinormalkan sama seperti saat register, kalau tidak login tidak cocok
+  @Trim()
+  @KeHurufKecil()
   @IsEmail({}, { message: "Format email tidak valid" })
   email!: string;
 
-  // Login TIDAK memakai aturan kekuatan password: akun lama tidak boleh
-  // terkunci, dan kita tidak ingin membocorkan aturan password ke penyerang.
+  // Login TIDAK memakai aturan kekuatan password: akun lama tidak boleh terkunci,
+  // dan kita tidak ingin membocorkan aturan password ke penyerang.
   @IsString({ message: "Password harus berupa teks" })
   @IsNotEmpty({ message: "Password wajib diisi" })
   password!: string;
