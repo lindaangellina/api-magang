@@ -4,6 +4,12 @@ import { Mentor } from "./Mentor.entity";
 
 export type StatusReview = "belum" | "sudah";
 
+// Bentuk satu lampiran yang disimpan di kolom jsonb (Minggu 14 Kamis)
+export interface LampiranJurnal {
+  url: string;
+  keterangan?: string;
+}
+
 @Entity("jurnal_harian")
 export class JurnalHarian {
   @PrimaryGeneratedColumn()
@@ -39,4 +45,12 @@ export class JurnalHarian {
 
   @Column({ name: "reviewer_id", nullable: true })
   reviewerId?: number;
+
+  // Minggu 14 Kamis (Soal 3): catatan dari mentor, hanya terisi saat jurnal ditandai "sudah"
+  @Column({ type: "text", nullable: true })
+  catatanMentor?: string | null;
+
+  // Minggu 14 Kamis (Soal 4): daftar lampiran, disimpan sebagai array JSON
+  @Column({ type: "jsonb", nullable: true })
+  lampiran?: LampiranJurnal[] | null;
 }

@@ -5,18 +5,35 @@ import * as authService from "../services/auth.service";
 import { API_PREFIX } from "../config/constants";
 import { ambilDto } from "../middlewares/validasi.middleware";
 import { RegisterDto, LoginDto } from "../dto/auth.dto";
+import { serialisasi } from "../utils/serialisasi";
+import { PesertaResponseDto } from "../dto/response/peserta.response";
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
-     const data = ambilDto<RegisterDto>(req);
-     const hasil = await authService.register(data);
-     dibuat(res, hasil, "Registrasi berhasil", `${API_PREFIX}/peserta/${hasil.id}`);
-   });
+  const dto = ambilDto<RegisterDto>(req);
+  // konfirmasiPassword hanya untuk validasi: sengaja TIDAK diteruskan ke service
+  const hasil = await authService.register({
+    nama: dto.nama,
+    sekolah: dto.sekolah,
+    email: dto.email,
+    password: dto.password,
+  });
+  dibuat(
+    res,
+    serialisasi(PesertaResponseDto, hasil),
+    "Registrasi berhasil",
+    `${API_PREFIX}/peserta/${hasil.id}`
+  );
+});
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-     const data = ambilDto<LoginDto>(req);
-     const hasil = await authService.login(data);
-     sukses(res, hasil, "Login berhasil");
-   });
+  const data = ambilDto<LoginDto>(req);
+  const hasil = await authService.login(data);
+  sukses(
+    res,
+    { ...hasil, peserta: serialisasi(PesertaResponseDto, hasil.peserta) },
+    "Login berhasil"
+  );
+});
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
   const { refreshToken } = req.body;

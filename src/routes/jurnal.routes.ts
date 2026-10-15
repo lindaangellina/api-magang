@@ -1,11 +1,15 @@
 import { Router } from "express";
 import { jurnalController } from "../controllers";
-import { validasiJurnal } from "../middlewares";
 import { validasi } from "../middlewares/validasi.middleware";
 import { authGuard } from "../middlewares/auth.middleware";
 import { requireRole } from "../middlewares/role.middleware";
 import { IdParamDto } from "../dto/common.dto";
-import { ListJurnalQueryDto } from "../dto/jurnal.dto";
+import {
+  CreateJurnalDto,
+  ListJurnalQueryDto,
+  ReviewJurnalDto,
+  UpdateJurnalDto,
+} from "../dto/jurnal.dto";
 
 const router = Router();
 
@@ -17,12 +21,12 @@ router.get(
   jurnalController.getSemuaJurnal
 );
 router.get("/:id", validasi(IdParamDto, "params"), jurnalController.getJurnalById);
-router.post("/", authGuard, validasiJurnal, jurnalController.buatJurnal);
+router.post("/", authGuard, validasi(CreateJurnalDto), jurnalController.buatJurnal);
 router.put(
   "/:id",
   authGuard,
   validasi(IdParamDto, "params"),
-  validasiJurnal,
+  validasi(UpdateJurnalDto),
   jurnalController.updateJurnal
 );
 router.patch(
@@ -30,6 +34,7 @@ router.patch(
   authGuard,
   requireRole("mentor"),
   validasi(IdParamDto, "params"),
+  validasi(ReviewJurnalDto),
   jurnalController.updateStatusReview
 );
 router.delete("/:id", authGuard, validasi(IdParamDto, "params"), jurnalController.hapusJurnal);

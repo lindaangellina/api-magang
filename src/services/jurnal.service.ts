@@ -3,8 +3,9 @@ import { AppDataSource } from "../config/database.config";
 import { JurnalHarian } from "../entities/Jurnal.entity";
 import { Peserta } from "../entities/Peserta.entity";
 import { StatusReview } from "../types";
-import { NotFoundError, ForbiddenError } from "../utils/AppError";
+import { NotFoundError, ForbiddenError, ValidationError } from "../utils/AppError";
 import { ListQuery } from "../utils/pagination";
+import { CreateJurnalDto, ReviewJurnalDto, UpdateJurnalDto } from "../dto/jurnal.dto";
 
 const jurnalRepo = AppDataSource.getRepository(JurnalHarian);
 const pesertaRepo = AppDataSource.getRepository(Peserta);
@@ -14,12 +15,6 @@ interface FilterJurnal {
   statusReview?: StatusReview;
   from?: string;
   to?: string;
-}
-
-interface JurnalInput {
-  kegiatan: string;
-  hambatan?: string;
-  linkCommit?: string;
 }
 
 export async function daftarJurnal(lq: ListQuery, filter: FilterJurnal) {
@@ -68,12 +63,14 @@ export async function getJurnalSaya(pesertaId: number): Promise<JurnalHarian[]> 
 }
 
 // pesertaId datang dari token (bukan dari body), statusReview selalu "belum"
-export async function buatJurnal(pesertaId: number, body: JurnalInput): Promise<JurnalHarian> {
+export async function buatJurnal(pesertaId: number, data: CreateJurnalDto): Promise<JurnalHarian> {
   const baru = jurnalRepo.create({
     pesertaId,
-    kegiatan: body.kegiatan,
-    hambatan: body.hambatan,
-    linkCommit: body.linkCommit,
+    kegiatan: data.kegiatan,
+    hambatan: data.hambatan,
+    linkCommit: data.linkCommit,
+    // dipetakan eksplisit: yang disimpan hanya url dan keterangan, bukan instance kelas DTO
+    lampiran: data.lampiran?.map((l) => ({ url: l.url, keterangan: l.keterangan })),
     statusReview: "belum",
   });
   return jurnalRepo.save(baru);
@@ -83,30 +80,38 @@ export async function updateJurnal(
   id: number,
   userId: number,
   role: "peserta" | "mentor",
-  body: Record<string, unknown>
+  data: UpdateJurnalDto
 ): Promise<JurnalHarian> {
+  // Whitelist eksplisit: pesertaId dan statusReview tidak bisa diubah lewat endpoint ini
+  const perubahan: Partial<Pick<JurnalHarian, "kegiatan" | "hambatan" | "linkCommit">> = {};
+  if (data.kegiatan !== undefined) perubahan.kegiatan = data.kegiatan;
+  if (data.hambatan !== undefined) perubahan.hambatan = data.hambatan;
+  if (data.linkCommit !== undefined) perubahan.linkCommit = data.linkCommit;
+
+  if (Object.keys(perubahan).length === 0) {
+    throw new ValidationError([{ field: "body", pesan: "Minimal satu field harus diisi" }]);
+  }
+
   const jurnal = await jurnalRepo.findOneBy({ id });
   if (!jurnal) throw new NotFoundError("Jurnal");
 
+  // Aturan bisnis (lapis service): hanya pemilik atau mentor
   if (role !== "mentor" && jurnal.pesertaId !== userId) {
     throw new ForbiddenError("Kamu tidak berhak mengubah jurnal ini");
   }
-
-  // Whitelist: pesertaId dan statusReview tidak bisa diubah lewat endpoint ini
-  const perubahan: Partial<JurnalInput> = {};
-  if (typeof body.kegiatan === "string") perubahan.kegiatan = body.kegiatan;
-  if (typeof body.hambatan === "string") perubahan.hambatan = body.hambatan;
-  if (typeof body.linkCommit === "string") perubahan.linkCommit = body.linkCommit;
 
   jurnalRepo.merge(jurnal, perubahan);
   return jurnalRepo.save(jurnal);
 }
 
-export async function updateStatusReview(id: number, statusReview: StatusReview): Promise<JurnalHarian> {
+export async function updateStatusReview(id: number, data: ReviewJurnalDto): Promise<JurnalHarian> {
   const jurnal = await jurnalRepo.findOneBy({ id });
   if (!jurnal) throw new NotFoundError("Jurnal");
 
-  jurnal.statusReview = statusReview;
+  jurnal.statusReview = data.statusReview;
+  // Catatan hanya berlaku untuk review "sudah". Saat dikembalikan ke "belum" catatan dikosongkan,
+  // sekaligus memastikan nilai yang lolos ValidateIf (tidak divalidasi) tidak pernah tersimpan.
+  jurnal.catatanMentor = data.statusReview === "sudah" ? (data.catatan ?? null) : null;
   return jurnalRepo.save(jurnal);
 }
 

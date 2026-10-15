@@ -15,7 +15,7 @@
 | GET | 200 | Membaca data, tidak mengubah apa pun (safe) |
 | POST | 201 + header `Location` | Membuat data baru. Pengecualian: login, refresh, logout mengembalikan 200 |
 | PATCH | 200 | Mengubah sebagian data, hanya field di whitelist |
-| PUT | 200 | Dipakai pada `/jurnal/:id` (field `kegiatan` wajib dikirim) |
+| PUT | 200 | Dipakai pada `/jurnal/:id`. Sejak Minggu 14 semua field opsional, tetapi minimal satu harus dikirim (422 jika body kosong) |
 | DELETE | 204 tanpa body | Idempotent. Memanggil ulang untuk data yang sudah tidak ada mengembalikan 404 (keputusan tim) |
 
 | Status | Kode | Arti |
@@ -65,6 +65,12 @@ Revisi Minggu 14: sebelumnya `id` yang bukan angka (misalnya `/peserta/abc`) dih
 - Boolean dari query string memakai `@KeBoolean()`, bukan `@Type(() => Boolean)`, karena `Boolean("false")` bernilai `true`.
 - Urutan middleware: rate limit, authGuard, requireRole, validasi, controller.
 - Setiap properti DTO wajib punya minimal satu decorator. Properti tanpa decorator dianggap tidak dikenal.
+- Objek bersarang dan array: `@ValidateNested({ each: true })` harus dipasangkan dengan `@Type(() => Kelas)`. Detail error memakai notasi titik, misalnya `lampiran.1.url`.
+- Identitas pemilik data (misalnya `pesertaId` pada jurnal) tidak pernah diterima dari body, selalu dari token.
+- Field yang hanya dipakai untuk validasi (misalnya `konfirmasiPassword`) tidak diteruskan ke service.
+- Validasi bersyarat memakai `@ValidateIf`. Nilai pada properti yang kondisinya false tidak divalidasi, jadi service tidak boleh menyimpannya.
+- Response selalu lewat Response DTO (`serialisasi(...)`) dengan `@Expose` sebagai whitelist, tidak pernah mengembalikan entity mentah.
+- Pembagian tiga lapis: DTO (bentuk dan format), service (aturan bisnis yang butuh data atau identitas pengguna), database (UNIQUE dan FOREIGN KEY sebagai penjaga terakhir). Detail di `docs/dto-cases.md`.
 
 ## 8. Penamaan
 - Bahasa Indonesia untuk field dan pesan.

@@ -36,7 +36,7 @@ Diuji setelah `validasi(RegisterDto)`, `validasi(LoginDto)`, dan `validasi(Updat
 
 | Tes | Hasil |
 |---|---|
-| `POST /auth/register` dengan body `{}` | 422, `detail` memuat semua field wajib (nama, sekolah, email, password) |
+| `POST /auth/register` dengan body `{}` | 422, `detail` memuat semua field wajib (nama, sekolah, email, password, dan sejak Kamis `konfirmasiPassword`) |
 | `POST /auth/register` dengan body `[]` | 422, "body harus berupa objek" |
 | `POST /auth/register` dengan `Content-Type: text/plain` | 422, body tidak terbaca sebagai JSON sehingga dianggap kosong |
 | `POST /auth/register` dengan JSON rusak | 400 `INVALID_JSON` |
@@ -155,3 +155,41 @@ curl.exe -s -w "\nHTTP %{http_code}\n" "http://localhost:3000/api/v1/jurnal?belu
 - Skenario 14 dijalankan lewat `npx ts-node src/index.ts`, karena `nodemon` menangani `Ctrl+C` sendiri.
 - Tes Minggu 14: variabel `TOKEN` dari `set TOKEN=...` hanya berlaku di jendela CMD yang sama. Di jendela baru, `%TOKEN%` terkirim mentah dan menghasilkan 401 `INVALID_TOKEN` ("jwt malformed"). Access token berlaku 15 menit, jadi login ulang jika menerima 401 `TOKEN_EXPIRED`.
 - Tes jurnal khusus mentor (Minggu 14, Rabu) memakai akun uji id 60 yang role-nya diubah sementara lewat database (`UPDATE peserta SET role='mentor' WHERE id=60;`), lalu dikembalikan (`... SET role='peserta' ...`). Token harus diambil dengan login ulang setelah perubahan role, karena role tersimpan di dalam token.
+
+## Tes Minggu 14, Kamis (validasi lanjutan dan Response DTO)
+
+Diuji dengan skrip `src/scripts/tes-kamis.ts` (server harus jalan). Skrip membuat akun uji sendiri. Untuk bagian review dibutuhkan akun berrole mentor, jadi akun uji dinaikkan sementara lewat database:
+
+```
+psql -U postgres -d magang_db -c "UPDATE peserta SET role='mentor' WHERE id=62;"
+set MENTOR_EMAIL=tes2@mail.com
+set MENTOR_PASSWORD=Rahasia123
+npx ts-node src/scripts/tes-kamis.ts
+psql -U postgres -d magang_db -c "UPDATE peserta SET role='peserta' WHERE id=62;"
+```
+
+| Skenario | Diharapkan |
+|---|---|
+| Register tanpa `konfirmasiPassword` | 422 pada `konfirmasiPassword` |
+| Register dengan `konfirmasiPassword` berbeda | 422 pada `konfirmasiPassword`, "Konfirmasi password tidak cocok" |
+| Register valid | 201, response tanpa `konfirmasiPassword` dan tanpa `password` |
+| `POST /jurnal` valid | 201, `pesertaId` dari token, `statusReview` `belum` |
+| `POST /jurnal` dengan `pesertaId` di body | 422, `pesertaId: Properti ini tidak diizinkan` |
+| `POST /jurnal` dengan `kegiatan` kurang dari 10 karakter | 422 pada `kegiatan` |
+| `PUT /jurnal/:id` hanya `hambatan` | 200 |
+| `PUT /jurnal/:id` body `{}` | 422 "Minimal satu field harus diisi" |
+| `PUT /jurnal/:id` oleh peserta lain | 403 (aturan di service) |
+| `lampiran` 6 item | 422, "Lampiran maksimal 5 item" |
+| `lampiran` item ke-2 URL salah | 422, detail `lampiran.1.url` |
+| `lampiran` bukan array, atau item berupa teks, atau item berisi properti asing | 422 |
+| 2 `lampiran` valid | 201, tersimpan dan muncul di `GET /jurnal/:id` |
+| Review `sudah` tanpa `catatan` | 422 pada `catatan` |
+| Review `sudah` dengan catatan 4 karakter | 422 pada `catatan` |
+| Review `sudah` dengan catatan tepat 5 karakter | 200 (batas bawah sah) |
+| Review `belum` tanpa `catatan` | 200, `catatanMentor` `null` |
+| Review `sudah` dengan catatan valid | 200, `catatanMentor` tersimpan |
+| Review dengan body kosong, atau properti asing (`reviewerId`) | 422 |
+| Review oleh peserta biasa | 403 |
+| Semua endpoint peserta dan jurnal | Response tidak memuat kata `password` |
+
+Catatan: sejak Kamis, `POST /auth/register` mewajibkan `konfirmasiPassword`. Perintah register pada skenario lama di atas (tanpa field itu) sekarang menghasilkan 422, dan `{}` menghasilkan error untuk lima field.

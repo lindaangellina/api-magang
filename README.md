@@ -122,9 +122,9 @@ Saat access token kedaluwarsa, API mengembalikan `401` dengan `kode: "TOKEN_EXPI
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"nama":"Rani","sekolah":"SMK1","email":"rani@mail.com","password":"password123"}'
+  -d '{"nama":"Rani","sekolah":"SMK1","email":"rani@mail.com","password":"password123","konfirmasiPassword":"password123"}'
 ```
-Response (201), dengan header `Location: /api/v1/peserta/7`:
+`konfirmasiPassword` wajib dan harus sama dengan `password` (422 jika berbeda atau tidak dikirim). Response (201), dengan header `Location: /api/v1/peserta/7`:
 ```json
 {
   "sukses": true,
@@ -213,9 +213,9 @@ Authorization: Bearer <accessToken>
 |---|---|---|---|
 | GET | /api/v1/jurnal | Daftar semua jurnal dengan pagination, filter, sorting | Hanya mentor |
 | GET | /api/v1/jurnal/:id | Detail satu jurnal | Publik |
-| POST | /api/v1/jurnal | Tambah jurnal baru. `pesertaId` diambil dari token (201 + `Location`) | Login |
-| PUT | /api/v1/jurnal/:id | Ubah jurnal (`kegiatan`, `hambatan`, `linkCommit`). Peserta hanya jurnal miliknya, mentor semua | Login |
-| PATCH | /api/v1/jurnal/:id/review | Ubah status review, body `{"statusReview": "sudah"}` | Hanya mentor |
+| POST | /api/v1/jurnal | Tambah jurnal baru (`kegiatan`, `hambatan?`, `linkCommit?`, `lampiran?` maksimal 5 item). `pesertaId` diambil dari token (201 + `Location`) | Login |
+| PUT | /api/v1/jurnal/:id | Ubah jurnal (`kegiatan`, `hambatan`, `linkCommit`, semuanya opsional tapi minimal satu). Peserta hanya jurnal miliknya, mentor semua | Login |
+| PATCH | /api/v1/jurnal/:id/review | Ubah status review, body `{"statusReview": "sudah", "catatan": "..."}`. `catatan` wajib (minimal 5 karakter) hanya saat `sudah` | Hanya mentor |
 | DELETE | /api/v1/jurnal/:id | Hapus jurnal (204). Peserta hanya jurnal miliknya, mentor semua | Login |
 
 ### Statistik
@@ -237,11 +237,11 @@ Health check memakai format response sendiri (`{ "status": ... }`), bukan format
 
 Request body tidak pernah disalin langsung ke entity, karena itu membuka celah mass assignment (misalnya peserta mengirim `{"role":"mentor"}` untuk menaikkan haknya sendiri). Sejak Minggu 14, body divalidasi lewat DTO dengan whitelist: properti yang tidak dikenal DTO **ditolak dengan 422**, bukan lagi diabaikan diam-diam.
 
-- `POST /auth/register`: `RegisterDto` (`nama`, `sekolah`, `email`, `password`). Password 8-72 karakter dan mengandung huruf dan angka. `role` selalu `peserta` dan tidak bisa diisi dari body. Nama, sekolah, dan email di-trim, dan email diubah ke huruf kecil sebelum divalidasi.
+- `POST /auth/register`: `RegisterDto` (`nama`, `sekolah`, `email`, `password`, `konfirmasiPassword`). Password 8-72 karakter dan mengandung huruf dan angka. `role` selalu `peserta` dan tidak bisa diisi dari body. Nama, sekolah, dan email di-trim, dan email diubah ke huruf kecil sebelum divalidasi.
 - `POST /auth/login`: `LoginDto` (`email`, `password`).
 - `PATCH /me` dan `PATCH /peserta/:id`: `UpdateProfilDto`, hanya `nama`, `sekolah`, `telepon` (format nomor Indonesia, misalnya `081234567890`). Field lain seperti `role`, `password`, `email`, dan `status` ditolak. Teks di-trim sebelum divalidasi.
-- `POST /jurnal`: `pesertaId` diambil dari token dan `statusReview` selalu `belum`. Keduanya tidak bisa diisi dari body.
-- `PUT /jurnal/:id`: hanya `kegiatan`, `hambatan`, `linkCommit`. Status review hanya bisa diubah mentor lewat `PATCH /jurnal/:id/review`.
+- `POST /jurnal`: `CreateJurnalDto`. `pesertaId` diambil dari token dan `statusReview` selalu `belum`. Keduanya tidak bisa diisi dari body (422).
+- `PUT /jurnal/:id`: `UpdateJurnalDto`, hanya `kegiatan`, `hambatan`, `linkCommit`. Status review hanya bisa diubah mentor lewat `PATCH /jurnal/:id/review` (`ReviewJurnalDto`).
 
 Contoh: body `{"nama":"Budi","role":"mentor"}` pada `PATCH /me` ditolak seluruhnya, `nama` pun tidak ikut tersimpan.
 ```bash
@@ -452,7 +452,7 @@ Jebakan: setiap properti DTO wajib punya minimal satu decorator (cukup `@IsOptio
 
 Catatan lain:
 - Satu field yang tidak dikirim bisa menghasilkan beberapa pesan sekaligus (misalnya "minimal 3 karakter" dan "harus berupa teks"). Ini perilaku normal class-validator.
-- Validasi manual lama masih dipakai di `POST /peserta`, `POST` dan `PUT /jurnal`, serta refresh dan logout. Bagian itu belum dipindah ke DTO.
+- Validasi manual lama masih dipakai di `POST /peserta`, serta refresh dan logout (jurnal dipindah ke DTO pada Kamis).
 
 ## Catatan: Transformasi Tipe & DTO Query/Params (Minggu 14, Rabu)
 
@@ -513,4 +513,57 @@ Register dengan email `"  Budi@Mail.COM  "` berhasil (201) dan tersimpan sebagai
 
 Koreksi diam-diam membuat frontend tidak pernah tahu kalau ia salah, sehingga bug tersembunyi. Dengan menolak lewat 422 dan pesan per field, bug frontend ketahuan saat development. Keputusan tim: tolak. Konsekuensinya, aturan 400 dan 422 di `docs/api-conventions.md` disederhanakan: semua kegagalan validasi DTO (body, query, params) adalah 422, dan 400 hanya untuk body yang tidak bisa di-parse (`INVALID_JSON`).
 
-Belum dipindah ke DTO: body `POST /peserta`, `POST` dan `PUT /jurnal`, serta `PATCH /jurnal/:id/review`.
+Pada hari Rabu belum dipindah ke DTO: body `POST /peserta`, `POST` dan `PUT /jurnal`, serta `PATCH /jurnal/:id/review`. Body jurnal dan review dipindah pada hari Kamis (lihat catatan Kamis di bawah).
+
+## Catatan: Validasi Lanjutan & Response DTO (Minggu 14, Kamis)
+
+### Objek bersarang dan array (`lampiran` pada jurnal)
+
+`POST /jurnal` menerima `lampiran`: array maksimal 5 item, masing-masing `{ url, keterangan? }` (`LampiranDto` di `src/dto/jurnal.dto.ts`). Dua dekorator harus dipasang berpasangan:
+
+- `@ValidateNested({ each: true })` memerintahkan class-validator memeriksa **setiap elemen** array.
+- `@Type(() => LampiranDto)` memberi tahu class-transformer kelas apa yang harus dibuat untuk tiap elemen. Tanpa ini elemennya tetap objek biasa tanpa aturan, sehingga tidak pernah divalidasi.
+
+Error untuk item yang salah memakai notasi titik dari `ratakan()`, misalnya `lampiran.1.url: URL lampiran tidak valid`. Properti asing di dalam item juga ditolak (`lampiran.0.sisipan: Properti ini tidak diizinkan`). Lampiran disimpan di kolom `lampiran` (jsonb) pada tabel `jurnal_harian`, dan service hanya menyimpan `url` dan `keterangan`.
+
+### `pesertaId` tidak boleh datang dari body
+
+`CreateJurnalDto` sengaja tidak punya `pesertaId`. Karena body memakai `forbidNonWhitelisted`, mengirim `pesertaId` menghasilkan 422 `pesertaId: Properti ini tidak diizinkan`. Pemilik jurnal selalu `req.user.id` dari token. Kalau `pesertaId` ada di DTO, peserta A bisa menulis jurnal atas nama peserta B.
+
+### Dekorator kustom `@Sama` (konfirmasi password)
+
+`@Sama("password")` di `src/dto/decorators/sama.ts` membandingkan dua field di objek yang sama. Dipakai pada `konfirmasiPassword` di `RegisterDto`. `konfirmasiPassword` wajib dikirim saat register, dan **tidak diteruskan ke service** (controller hanya mengirim `nama`, `sekolah`, `email`, `password`), jadi tidak pernah tersimpan atau muncul di response.
+
+### Validasi bersyarat (`ReviewJurnalDto`)
+
+`PATCH /jurnal/:id/review` menerima `{ statusReview, catatan? }`. `catatan` memakai `@ValidateIf(o => o.statusReview === "sudah")`, jadi hanya wajib (minimal 5 karakter) saat jurnal ditandai `sudah`. `@ValidateIf` berbeda dari `@IsOptional`: kalau kondisinya false, **semua** validator pada properti itu dilewati, sedangkan `@IsOptional` hanya melewati nilai kosong.
+
+Konsekuensi yang ditangani di service: untuk `statusReview: "belum"`, nilai `catatan` tidak divalidasi sama sekali, sehingga service menyimpan `catatanMentor = null` dan tidak pernah menyimpan nilai itu. Catatan tersimpan di kolom `catatanMentor` (text, nullable).
+
+Hasil uji (login mentor):
+
+| Body | Hasil |
+|---|---|
+| `{"statusReview":"sudah"}` | 422 pada `catatan` |
+| `{"statusReview":"sudah","catatan":"Baik"}` (4 karakter) | 422 pada `catatan` |
+| `{"statusReview":"sudah","catatan":"Bagus"}` (tepat 5 karakter) | 200, karena batasnya minimal 5 karakter |
+| `{"statusReview":"belum"}` | 200, `catatanMentor` menjadi `null` |
+| `{"statusReview":"sudah","catatan":"Kerja bagus, lanjutkan"}` | 200, `catatanMentor` tersimpan |
+
+Catatan: contoh soal menyebut `"Bagus"` seharusnya 422 karena "kurang dari 5 karakter", padahal `Bagus` terdiri dari 5 huruf. DTO mengikuti aturan yang tertulis (`MinLength(5)`, pesan "minimal 5 karakter"), jadi `Bagus` sah dan contoh penolakan memakai `Baik`.
+
+### `UpdateJurnalDto` ditulis eksplisit
+
+`PUT /jurnal/:id` memakai `UpdateJurnalDto` (`kegiatan`, `hambatan`, `linkCommit`, semuanya `@IsOptional`). Dekorator tidak tersalin otomatis lewat `Partial<>`, jadi aturannya ditulis ulang. Body kosong `{}` ditolak 422 "Minimal satu field harus diisi", dan `statusReview` atau `pesertaId` di body ditolak 422.
+
+### Response DTO: mengontrol apa yang keluar
+
+Request DTO menjaga pintu masuk, Response DTO menjaga pintu keluar. `PesertaResponseDto` dan `JurnalResponseDto` (`src/dto/response/`) hanya berisi properti ber-`@Expose()`, dan `serialisasi()` (`src/utils/serialisasi.ts`) memakai `excludeExtraneousValues: true`. Ini whitelist: kolom baru yang sensitif tidak akan bocor sampai ada yang sengaja menambahkan `@Expose`. Dipasang di semua endpoint yang mengembalikan data peserta dan jurnal (register, login, `/me`, `/peserta`, `/jurnal`, `/me/jurnal`, `/peserta/:id/jurnal`). Bersama `select: false` pada kolom `password`, password punya dua lapis pengaman.
+
+Bukti dua lapis itu berdiri sendiri-sendiri: `select: false` pada kolom `password` di `Peserta.entity.ts` dilepas sementara, lalu seluruh endpoint peserta dan jurnal diuji lagi dengan `src/scripts/tes-kamis.ts`. Hasilnya tetap 44 dari 44 lulus, termasuk semua pengecekan bahwa kata `password` tidak muncul di response. Artinya walaupun hash password ikut terbaca dari database, Response DTO tetap tidak mengeluarkannya. Setelah percobaan, `select: false` dikembalikan (`git diff` pada file entity kosong).
+
+### Tiga lapis validasi
+
+Ringkasnya: **DTO** untuk bentuk dan format (stateless, tanpa database), **service** untuk aturan bisnis yang butuh data atau siapa penggunanya (misalnya hanya pemilik yang boleh mengedit jurnal), dan **database** untuk jaminan terakhir (UNIQUE, FOREIGN KEY). Email unik sengaja tidak dicek di DTO karena rawan race condition: dua request bersamaan sama-sama melihat "email belum ada", lalu keduanya menyimpan. Hanya UNIQUE constraint yang menjamin, dan error 23505 diterjemahkan menjadi 409. Pembagian lengkap 8 aturan ada di `docs/dto-cases.md`.
+
+Belum dipindah ke DTO: body `POST /peserta`, serta `refresh` dan `logout`.

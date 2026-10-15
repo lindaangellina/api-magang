@@ -7,6 +7,7 @@ import {
   MinLength,
 } from "class-validator";
 import { KeHurufKecil, Trim } from "./decorators/transform";
+import { Sama } from "./decorators/sama";
 
 export class RegisterDto {
   @Trim()
@@ -37,6 +38,11 @@ export class RegisterDto {
     message: "Password harus mengandung huruf dan angka",
   })
   password!: string;
+
+  // Hanya untuk validasi: TIDAK boleh ikut disimpan (dibuang di auth.service)
+  @IsString({ message: "Konfirmasi password harus berupa teks" })
+  @Sama("password", { message: "Konfirmasi password tidak cocok" })
+  konfirmasiPassword!: string;
 }
 
 export class LoginDto {
