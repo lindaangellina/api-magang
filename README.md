@@ -654,3 +654,53 @@ Hasil: satu perubahan kecil pada kode langsung ditangkap oleh test yang relevan 
 Test tanpa `await` (`expect(service.getById(99)).rejects.toThrow(...)`) dianggap selesai sebelum assertion dievaluasi, jadi hasilnya tidak bisa dipercaya. Saat dicoba di Jest 30, assertion yang gagal itu muncul **setelah** test selesai dan menjatuhkan worker (`Jest worker encountered 4 child process exceptions`), sehingga seluruh suite gagal dan tidak ada yang tahu test mana penyebabnya. Karena itu versi tanpa `await` hanya disimpan sebagai komentar di `tests/unit/jebakan-async.test.ts`.
 
 Jebakan async kedua yang dijalankan sungguhan: `try { await ... } catch (e) { expect(e)... }` tanpa `expect.assertions`. Test itu **lolos** terhadap service rusak (yang tidak melempar error), karena blok `catch` tidak pernah berjalan sehingga tidak ada assertion yang dieksekusi. Versi benar memakai `async` + `await` + `expect.assertions(1)`. Untuk membuktikan versi benar menangkap bug, assertion yang sama dijalankan terhadap service rusak lalu dibungkus `expect(...).rejects.toThrow()`: test itu lolos hanya bila bagian dalamnya memang gagal. (Percobaan awal dengan `it.failing` + `expect.assertions(1)` gagal, karena `it.failing` hanya membalik error dari isi test, bukan pemeriksaan jumlah assertion yang dilakukan setelahnya.) Aturan: test yang menyentuh promise harus `async` dan memakai `await`, dan jangan percaya test yang belum pernah kamu lihat gagal.
+
+## Catatan: Menguji DTO dan Validasi (Minggu 15, Selasa)
+
+### Refactor: validasiDto dipisah dari middleware
+
+Sebelumnya middleware `validasi()` mencampur dua hal: logika validasi dan urusan Express (`req`, `res`, `next`). Logikanya dipindah menjadi fungsi murni `validasiDto(dto, mentah, sumber)` di `src/utils/validasi.util.ts` (bersama tipe `Sumber`). Middleware sekarang tipis: ambil `req[sumber]`, panggil `validasiDto`, simpan hasilnya di `req.validated`, lalu `next()`. Perilaku API tidak berubah, hanya sekarang logika validasi bisa diuji tanpa Express, tanpa server, dan tanpa database. Pelajarannya: kode yang sulit diuji biasanya perlu dirapikan desainnya.
+
+### Struktur test
+
+```
+tests/
+├── helpers/dto.ts                    ← fieldYangGagal, tangkapError, ulang, tipe baris it.each
+└── unit/dto/
+    ├── auth.dto.test.ts              ← RegisterDto, LoginDto, RefreshTokenDto
+    ├── peserta.dto.test.ts           ← CreatePesertaDto, UpdateProfilDto, ListPesertaQueryDto
+    ├── jurnal.dto.test.ts            ← CreateJurnalDto (+LampiranDto), UpdateJurnalDto, ReviewJurnalDto, ListJurnalQueryDto
+    ├── common.dto.test.ts            ← IdParamDto
+    ├── keamanan.dto.test.ts          ← Soal 4: mass assignment, password tidak bocor, sortBy, normalisasi email
+    └── sama.decorator.test.ts        ← Soal 5: decorator @Sama
+```
+
+Setiap DTO punya minimal 3 kasus valid dan 5 kasus tidak valid, ditulis dengan `it.each` memakai payload dari `docs/dto-cases.md`. Helper `fieldYangGagal` mengembalikan daftar nama field yang gagal, sehingga test cukup memeriksa field-nya, bukan teks pesan yang bisa berubah.
+
+### Hal yang sengaja berbeda dari contoh materi
+
+- Jest 30 tidak punya fungsi global `fail()`. Untuk memeriksa isi error saya memakai helper `tangkapError` yang mengembalikan error yang dilempar.
+- Dua kasus di `dto-cases.md` bukan aturan DTO, jadi tidak ditulis sebagai test DTO: body kosong pada `UpdateProfilDto` dan `UpdateJurnalDto` (lolos DTO, ditolak service dengan "Minimal satu field harus diisi"; ada test yang mendokumentasikannya), dan `belumDireview=true` bersama `statusReview=sudah` (pengecekan silang itu ada di service).
+
+### Test keamanan (Soal 4)
+
+- `role`, `id`, dan `password` ditolak oleh `UpdateProfilDto` (whitelist + `forbidNonWhitelisted`), baik sendirian maupun bersama field sah.
+- Nilai password tidak muncul di detail error (`validationError: { value: false }`), diuji pada register (password pendek dan konfirmasi berbeda) dan login (password terlalu panjang).
+- `sortBy=password` ditolak pada `ListPesertaQueryDto` dan `ListJurnalQueryDto`, sedangkan kolom di whitelist diterima.
+- Email dinormalkan (spasi dan huruf besar) pada Register, Login, dan CreatePeserta. Login harus sama dengan register, kalau tidak akun tidak bisa masuk.
+
+### Test decorator Sama (Soal 5)
+
+Nilai sama lolos, berbeda gagal pada field yang dihias, pesan bawaan memuat nama kedua field, dan pesan buatan sendiri dipakai bila diberikan. Dua sifat penting yang ikut diuji: perbandingan memakai `===` (huruf besar/kecil dan tipe dibedakan: angka `123` tidak sama dengan teks `"123"`), dan **kedua field yang tidak ada dianggap sama** (`undefined === undefined`). Karena itu `@Sama` harus dipasangkan dengan `@IsString` atau `@IsNotEmpty`, seperti pada `RegisterDto`. Di DTO contoh, kedua properti perlu decorator karena whitelist membuang properti yang tidak punya decorator.
+
+### Eksperimen: menghapus @MaxLength(72) (Soal 6)
+
+Hasil percobaan: setelah `@MaxLength(72)` dihapus dari `password` pada `RegisterDto`, **2 dari 218 test gagal**: `RegisterDto › menolak: password 73 karakter` dan `RegisterDto › menolak: password lebih dari 72 karakter` (field `password` tidak muncul di daftar field yang gagal). Artinya aturan batas 72 (batas bcrypt) benar-benar dijaga test, dan tidak ada kasus yang terlewat untuk decorator itu. Setelah decorator dikembalikan, `npm test` kembali 218 dari 218 lolos.
+
+### Cek API setelah refactor
+
+Setelah `validasiDto` dipisah dari middleware, API yang sedang berjalan diuji ulang dengan `src/scripts/tembak.ts` (tanpa `OUT`, jadi `docs/uji-tembak.md` tidak berubah): **14 dari 14 payload tetap ditangani dengan benar**, dan `GET /peserta` tetap 200 setelah payload SQL. Perilaku API tidak berubah oleh refactor.
+
+### Regression test
+
+`belumDireview=false` harus bernilai `false`, bukan `true` (bug `Boolean("false") === true` pada Minggu 14), dan `belumDireview=abc` ditolak. Test ini ada di `jurnal.dto.test.ts` supaya bug yang sama tidak kembali tanpa diketahui.
