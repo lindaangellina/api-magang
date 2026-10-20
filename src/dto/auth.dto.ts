@@ -26,6 +26,7 @@ export class RegisterDto {
   // Email dinormalkan supaya "Budi@Mail.com" dan "budi@mail.com" tidak jadi dua akun
   @Trim()
   @KeHurufKecil()
+  @MaxLength(254, { message: "Email maksimal 254 karakter" })
   @IsEmail({}, { message: "Format email tidak valid" })
   email!: string;
 
@@ -49,12 +50,23 @@ export class LoginDto {
   // Harus dinormalkan sama seperti saat register, kalau tidak login tidak cocok
   @Trim()
   @KeHurufKecil()
+  @MaxLength(254, { message: "Email maksimal 254 karakter" })
   @IsEmail({}, { message: "Format email tidak valid" })
   email!: string;
 
   // Login TIDAK memakai aturan kekuatan password: akun lama tidak boleh terkunci,
   // dan kita tidak ingin membocorkan aturan password ke penyerang.
+  // Tetap ada batas atas 72 (sama dengan register) supaya tidak ada input tanpa batas.
   @IsString({ message: "Password harus berupa teks" })
   @IsNotEmpty({ message: "Password wajib diisi" })
+  @MaxLength(72, { message: "Password maksimal 72 karakter" })
   password!: string;
+}
+
+// Untuk POST /auth/refresh dan POST /auth/logout (menggantikan validasiRefreshToken manual)
+export class RefreshTokenDto {
+  @IsString({ message: "refreshToken harus berupa teks" })
+  @IsNotEmpty({ message: "refreshToken wajib diisi" })
+  @MaxLength(2048, { message: "refreshToken maksimal 2048 karakter" })
+  refreshToken!: string;
 }

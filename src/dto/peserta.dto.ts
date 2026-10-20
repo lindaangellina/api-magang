@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
 import {
+  IsEmail,
   IsIn,
   IsInt,
   IsOptional,
@@ -10,8 +11,37 @@ import {
   Min,
   MinLength,
 } from "class-validator";
-import { Trim } from "./decorators/transform";
+import { KeHurufKecil, Trim } from "./decorators/transform";
 import { ListQueryDto } from "./common.dto";
+
+// Untuk POST /peserta (menggantikan validasiPeserta manual).
+// role, password, status, fase, dan id sengaja TIDAK ada: tidak bisa diisi lewat body.
+export class CreatePesertaDto {
+  @Trim()
+  @IsString({ message: "Nama harus berupa teks" })
+  @MinLength(3, { message: "Nama minimal 3 karakter" })
+  @MaxLength(100, { message: "Nama maksimal 100 karakter" })
+  nama!: string;
+
+  @Trim()
+  @IsString({ message: "Sekolah harus berupa teks" })
+  @MinLength(3, { message: "Sekolah minimal 3 karakter" })
+  @MaxLength(100, { message: "Sekolah maksimal 100 karakter" })
+  sekolah!: string;
+
+  @Trim()
+  @KeHurufKecil()
+  @MaxLength(254, { message: "Email maksimal 254 karakter" })
+  @IsEmail({}, { message: "Format email tidak valid" })
+  email!: string;
+
+  @IsOptional()
+  @Trim()
+  @Matches(/^(\+62|62|0)8[1-9][0-9]{6,10}$/, {
+    message: "Format nomor telepon Indonesia tidak valid",
+  })
+  telepon?: string;
+}
 
 export class UpdateProfilDto {
   @IsOptional()

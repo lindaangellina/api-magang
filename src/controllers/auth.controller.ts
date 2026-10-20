@@ -4,7 +4,7 @@ import { sukses, dibuat } from "../utils/response";
 import * as authService from "../services/auth.service";
 import { API_PREFIX } from "../config/constants";
 import { ambilDto } from "../middlewares/validasi.middleware";
-import { RegisterDto, LoginDto } from "../dto/auth.dto";
+import { RegisterDto, LoginDto, RefreshTokenDto } from "../dto/auth.dto";
 import { serialisasi } from "../utils/serialisasi";
 import { PesertaResponseDto } from "../dto/response/peserta.response";
 
@@ -36,13 +36,13 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
-  const { refreshToken } = req.body;
+  const { refreshToken } = ambilDto<RefreshTokenDto>(req);
   const hasil = await authService.refresh(refreshToken);
   sukses(res, hasil, "Access token berhasil diperbarui");
 });
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
-  const { refreshToken } = req.body;
+  const { refreshToken } = ambilDto<RefreshTokenDto>(req);
   await authService.logout(refreshToken);
   sukses(res, null, "Logout berhasil");
 });

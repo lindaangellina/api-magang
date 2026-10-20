@@ -7,6 +7,7 @@ export class IdParamDto {
   @Type(() => Number) // "5" menjadi 5, "abc" menjadi NaN lalu ditolak @IsInt
   @IsInt({ message: "id harus berupa bilangan bulat" })
   @Min(1, { message: "id minimal 1" })
+  @Max(2147483647, { message: "id terlalu besar" }) // batas integer PostgreSQL; tanpa ini id raksasa memicu error database (500)
   id!: number;
 }
 
@@ -16,6 +17,7 @@ export class ListQueryDto {
   @Type(() => Number)
   @IsInt({ message: "page harus berupa bilangan bulat" })
   @Min(1, { message: "page minimal 1" })
+  @Max(1000000, { message: "page maksimal 1000000" })
   page: number = 1;
 
   @IsOptional()

@@ -10,6 +10,7 @@ import {
   IsString,
   IsUrl,
   Matches,
+  Max,
   MaxLength,
   Min,
   MinLength,
@@ -26,6 +27,7 @@ export const SORT_JURNAL = ["createdAt", "statusReview"] as const;
 // Minggu 14 Kamis: body jurnal (objek bersarang, array, validasi bersyarat)
 // ======================================================================
 export class LampiranDto {
+  @MaxLength(2048, { message: "URL lampiran maksimal 2048 karakter" })
   @IsUrl({}, { message: "URL lampiran tidak valid" })
   url!: string;
 
@@ -49,6 +51,7 @@ export class CreateJurnalDto {
   hambatan?: string;
 
   @IsOptional()
+  @MaxLength(2048, { message: "Link commit maksimal 2048 karakter" })
   @IsUrl({}, { message: "Link commit harus berupa URL yang valid" })
   linkCommit?: string;
 
@@ -78,6 +81,7 @@ export class UpdateJurnalDto {
   hambatan?: string;
 
   @IsOptional()
+  @MaxLength(2048, { message: "Link commit maksimal 2048 karakter" })
   @IsUrl({}, { message: "Link commit harus berupa URL yang valid" })
   linkCommit?: string;
 }
@@ -110,6 +114,7 @@ export class ListJurnalQueryDto extends ListQueryDto {
   @Type(() => Number)
   @IsInt({ message: "pesertaId harus berupa bilangan bulat" })
   @Min(1, { message: "pesertaId minimal 1" })
+  @Max(2147483647, { message: "pesertaId terlalu besar" })
   pesertaId?: number;
 
   @IsOptional()

@@ -10,7 +10,7 @@ import { ForbiddenError } from "../utils/AppError";
 import { API_PREFIX } from "../config/constants";
 import { ambilDto } from "../middlewares/validasi.middleware";
 import { IdParamDto } from "../dto/common.dto";
-import { ListPesertaQueryDto, UpdateProfilDto } from "../dto/peserta.dto";
+import { CreatePesertaDto, ListPesertaQueryDto, UpdateProfilDto } from "../dto/peserta.dto";
 
 export const getSemuaPeserta = asyncHandler(async (req: Request, res: Response) => {
   const query = ambilDto<ListPesertaQueryDto>(req, "query");
@@ -29,7 +29,8 @@ export const getPesertaById = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const buatPeserta = asyncHandler(async (req: Request, res: Response) => {
-  const baru = await pesertaService.buatPeserta(req.body);
+  const data = ambilDto<CreatePesertaDto>(req);
+  const baru = await pesertaService.buatPeserta(data);
   dibuat(res, serialisasi(PesertaResponseDto, baru), "Peserta berhasil ditambahkan", `${API_PREFIX}/peserta/${baru.id}`);
 });
 

@@ -25,6 +25,7 @@
 | 403 | FORBIDDEN | Sudah login tapi tidak berhak (role atau kepemilikan data) |
 | 404 | NOT_FOUND | Data atau route tidak ada |
 | 409 | CONFLICT | Bentrok dengan data yang ada (email duplikat, data masih dipakai relasi lain) |
+| 413 | PAYLOAD_TOO_LARGE | Body request lebih dari 1 MB (batas `express.json`). Kesalahan client, bukan 500 |
 | 422 | VALIDATION_ERROR | Semua kegagalan validasi DTO, baik body, query string, maupun route params, dengan detail per field |
 | 429 | RATE_LIMITED | Terlalu banyak percobaan login gagal |
 | 500 | INTERNAL_ERROR | Bug di server |
@@ -44,6 +45,7 @@ Revisi Minggu 14: sebelumnya `id` yang bukan angka (misalnya `/peserta/abc`) dih
 - `detail` hanya ada pada validasi, berbentuk array `{ field, pesan }`.
 - `requestId` sama dengan header `X-Request-Id`.
 - Field `debug` (pesan asli dan stack trace) hanya muncul saat `NODE_ENV=development`.
+- Error dari library (misalnya body terlalu besar) diterjemahkan di `terjemahkanError` menjadi kode yang stabil, bukan jatuh ke 500.
 
 ## 5. Endpoint daftar (list)
 - Parameter: `page`, `limit` (maksimal 100), `sortBy` (whitelist), `order`, `q`.
@@ -65,6 +67,9 @@ Revisi Minggu 14: sebelumnya `id` yang bukan angka (misalnya `/peserta/abc`) dih
 - Boolean dari query string memakai `@KeBoolean()`, bukan `@Type(() => Boolean)`, karena `Boolean("false")` bernilai `true`.
 - Urutan middleware: rate limit, authGuard, requireRole, validasi, controller.
 - Setiap properti DTO wajib punya minimal satu decorator. Properti tanpa decorator dianggap tidak dikenal.
+- Tidak ada input tanpa batas: setiap string punya `MaxLength`, setiap angka punya `Min` dan `Max` (id dan `pesertaId` maksimal 2147483647, batas integer PostgreSQL, supaya id raksasa tidak memicu error database), dan setiap array punya `ArrayMaxSize`.
+- Properti asing di body ditolak 422. Parameter asing di query string diabaikan (tidak ada di DTO, jadi dibuang oleh whitelist), supaya parameter tambahan seperti `utm_source` tidak merusak request.
+- Semua endpoint yang menerima input memakai DTO. Tidak ada lagi validasi manual dan tidak ada controller yang membaca `req.body`, `req.query`, atau `req.params` mentah.
 - Objek bersarang dan array: `@ValidateNested({ each: true })` harus dipasangkan dengan `@Type(() => Kelas)`. Detail error memakai notasi titik, misalnya `lampiran.1.url`.
 - Identitas pemilik data (misalnya `pesertaId` pada jurnal) tidak pernah diterima dari body, selalu dari token.
 - Field yang hanya dipakai untuk validasi (misalnya `konfirmasiPassword`) tidak diteruskan ke service.

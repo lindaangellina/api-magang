@@ -42,6 +42,16 @@ function terjemahkanError(err: unknown): AppError {
     return new AppError("Format JSON pada body tidak valid", 400, ErrorCode.INVALID_JSON);
   }
 
+  // Minggu 14 (Jumat): body lebih besar dari batas express.json ({ limit: "1mb" }).
+  // Ini kesalahan client, bukan bug server, jadi 413 dan bukan 500.
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { type?: string }).type === "entity.too.large"
+  ) {
+    return new AppError("Ukuran request terlalu besar", 413, ErrorCode.PAYLOAD_TOO_LARGE);
+  }
+
   return new AppError("Terjadi kesalahan di server", 500, ErrorCode.INTERNAL_ERROR);
 }
 

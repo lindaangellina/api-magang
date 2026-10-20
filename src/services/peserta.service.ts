@@ -1,12 +1,13 @@
 import { FindOptionsOrder, FindOptionsWhere, ILike } from "typeorm";
 import { AppDataSource } from "../config/database.config";
 import { Peserta } from "../entities/Peserta.entity";
-import { PesertaBody } from "../types";
 import { NotFoundError, ConflictError, ValidationError } from "../utils/AppError";
 import { ListQuery, escapeLike } from "../utils/pagination";
-import { UpdateProfilDto } from "../dto/peserta.dto";
+import { CreatePesertaDto, UpdateProfilDto } from "../dto/peserta.dto";
 
 const repo = AppDataSource.getRepository(Peserta);
+
+export const SORT_PESERTA = ["nama", "fase", "createdAt"] as const;
 
 interface FilterPeserta {
   sekolah?: string;
@@ -41,7 +42,7 @@ export async function getPesertaById(id: number): Promise<Peserta> {
   return peserta;
 }
 
-export async function buatPeserta(body: PesertaBody): Promise<Peserta> {
+export async function buatPeserta(body: CreatePesertaDto): Promise<Peserta> {
   const emailSudahAda = await repo.findOneBy({ email: body.email });
   if (emailSudahAda) throw new ConflictError("Email sudah terdaftar");
 

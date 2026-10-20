@@ -316,7 +316,7 @@ Hanya `POST /api/v1/auth/login` yang dibatasi: maksimal 10 percobaan **gagal** p
 - **Graceful shutdown**: `Ctrl+C` atau `SIGTERM` membuat server berhenti menerima request baru, menunggu request berjalan selesai, menutup koneksi database, lalu keluar (batas waktu 10 detik). `uncaughtException` memicu shutdown, sedangkan `unhandledRejection` dicatat.
 - **helmet**: memasang header keamanan standar.
 - **CORS**: hanya origin di `CORS_ORIGINS` yang diizinkan. Header `Location`, `X-Request-Id`, dan `Retry-After` dibuka agar bisa dibaca JavaScript di browser.
-- **Batas body**: `express.json({ limit: "1mb" })`.
+- **Batas body**: `express.json({ limit: "1mb" })`. Body yang lebih besar ditolak 413 `PAYLOAD_TOO_LARGE`.
 - **Password**: tidak pernah dikirim ke client dan tidak pernah dicatat di log. Kolom `password` memakai `select: false`.
 
 ## Melacak Error Lewat Request ID
@@ -452,7 +452,7 @@ Jebakan: setiap properti DTO wajib punya minimal satu decorator (cukup `@IsOptio
 
 Catatan lain:
 - Satu field yang tidak dikirim bisa menghasilkan beberapa pesan sekaligus (misalnya "minimal 3 karakter" dan "harus berupa teks"). Ini perilaku normal class-validator.
-- Validasi manual lama masih dipakai di `POST /peserta`, serta refresh dan logout (jurnal dipindah ke DTO pada Kamis).
+- Validasi manual lama dipakai di `POST /peserta`, refresh, dan logout sampai hari Jumat. Semuanya sudah dipindah ke DTO (lihat catatan Jumat di bawah).
 
 ## Catatan: Transformasi Tipe & DTO Query/Params (Minggu 14, Rabu)
 
@@ -566,4 +566,47 @@ Bukti dua lapis itu berdiri sendiri-sendiri: `select: false` pada kolom `passwor
 
 Ringkasnya: **DTO** untuk bentuk dan format (stateless, tanpa database), **service** untuk aturan bisnis yang butuh data atau siapa penggunanya (misalnya hanya pemilik yang boleh mengedit jurnal), dan **database** untuk jaminan terakhir (UNIQUE, FOREIGN KEY). Email unik sengaja tidak dicek di DTO karena rawan race condition: dua request bersamaan sama-sama melihat "email belum ada", lalu keduanya menyimpan. Hanya UNIQUE constraint yang menjamin, dan error 23505 diterjemahkan menjadi 409. Pembagian lengkap 8 aturan ada di `docs/dto-cases.md`.
 
-Belum dipindah ke DTO: body `POST /peserta`, serta `refresh` dan `logout`.
+Pada hari Kamis belum dipindah ke DTO: body `POST /peserta`, serta `refresh` dan `logout`. Ketiganya dipindah pada hari Jumat.
+
+## Catatan: Integrasi dan "Coba Rusakkan API-ku" (Minggu 14, Jumat)
+
+### Semua input lewat DTO
+
+Audit lengkap ada di `docs/endpoint-audit.md` (tabel DTO per endpoint). Tiga endpoint yang masih memakai validasi manual dipindah ke DTO: `POST /peserta` (`CreatePesertaDto`), serta `POST /auth/refresh` dan `POST /auth/logout` (`RefreshTokenDto`). Validator manual lama (`validasiPeserta`, `validasiUbahProfil`, `validasiJurnal`, `validasiRefreshToken`) dihapus. Pengecekan `findstr` pada `req.body`, `req.query`, dan `req.params` di seluruh `src` hanya menemukan dua baris komentar di `validasi.middleware.ts`, jadi tidak ada controller yang membaca input mentah. `tanpaPassword` tetap ada karena `auth.service.ts` masih memakainya sebagai lapis tambahan.
+
+### Review DTO dengan checklist: celah yang ditemukan dan ditambal
+
+| Temuan | Risiko | Perbaikan |
+|---|---|---|
+| `id` pada route tidak punya batas atas | `/peserta/99999999999` lolos DTO lalu menjadi error database (integer overflow), hasilnya 500 | `@Max(2147483647)` pada `IdParamDto` dan `pesertaId` |
+| `page` tidak punya batas atas | Nilai raksasa membuat offset tidak masuk akal | `@Max(1000000)` |
+| Email tanpa `MaxLength` | Input tanpa batas | `@MaxLength(254)` pada register, login, dan peserta |
+| Password login tanpa `MaxLength` | Input tanpa batas | `@MaxLength(72)` |
+| `linkCommit` dan `url` lampiran tanpa `MaxLength` | String sampai ukuran body | `@MaxLength(2048)` |
+| Body lebih dari 1 MB menghasilkan 500 | Kesalahan client terlihat seperti bug server | Tambalan 413 `PAYLOAD_TOO_LARGE` di `terjemahkanError` |
+
+### Hasil uji
+
+- **127 dari 127** kasus DTO sesuai harapan (11 DTO, tiap DTO minimal 3 valid dan 5 tidak valid). Tabel hasil nyata ada di `docs/dto-cases.md`, dibuat otomatis oleh `src/scripts/tes-dto-cases.ts`.
+- **14 dari 14** payload uji tembak ditangani dengan benar (`docs/uji-tembak.md`, dibuat oleh `src/scripts/tembak.ts`). Ringkasannya: body `{}`, `[]`, `text/plain`, tipe salah, nama spasi, nama 10.000 karakter, properti `role`, password 100 karakter, dan query ganda semuanya 422. Email `"  Budi@Mail.COM  "` diterima dan dinormalkan. Query `?page[x]=1&limit[]=5` tidak crash (200, parameter yang tidak dikenal diabaikan). Body 2 MB sekarang 413. Payload SQL dan HTML diterima sebagai teks biasa, dan tabel `peserta` tetap utuh setelah payload SQL.
+- Sebelum tambalan 413, body 2 MB menghasilkan 500 `INTERNAL_ERROR`. Setelah tambalan, 413 `PAYLOAD_TOO_LARGE`.
+
+### Kenapa SQL injection tidak berhasil, dan kenapa HTML tidak otomatis berbahaya
+
+Payload `'; DROP TABLE peserta; --` diterima karena hanya teks biasa, dan aman karena TypeORM memakai query berparameter: SQL dan nilainya dikirim terpisah, sehingga PostgreSQL memperlakukannya sebagai data, bukan perintah. Payload `<script>alert(1)</script>` juga diterima validasi dan disimpan apa adanya. API hanya mengembalikannya sebagai JSON (`application/json`), jadi browser tidak mengeksekusinya. React meng-escape teks yang dirender lewat JSX, jadi bahayanya baru muncul bila frontend memakai `dangerouslySetInnerHTML` atau `innerHTML`. Tanggung jawab mencegahnya ada di lapisan output (frontend), dibantu header `Content-Security-Policy`. Penjelasan lengkap ada di `docs/uji-tembak.md`.
+
+### Catatan
+
+- Response error di development memuat `debug.stack`. Itu sudah dipastikan hanya muncul saat `NODE_ENV=development` (di production blok `debug` tidak dikirim).
+- Query string yang tidak dikenal DTO (misalnya `page[x]`) diabaikan, sedangkan properti asing di body ditolak 422. Keputusan ini dicatat di `docs/api-conventions.md`.
+- `POST /peserta` masih publik dan membuat akun tanpa password (masalah desain lama, menunggu keputusan mentor).
+
+### Uji tembak ke API teman (tukar Issue)
+
+Repo teman (`ZidanAlfaPermana/complete-expressjs-api`) dijalankan lokal di port 4000 dengan database terpisah `magang_teman`, lalu `src/scripts/tembak.ts` dijalankan dari repo ini dengan `BASE_URL=http://localhost:4000/api/v1` (tanpa `OUT`, jadi tidak menimpa `docs/uji-tembak.md`).
+
+- **Hasil: 14 dari 14 payload ditangani dengan benar.** Input rusak, `role: "mentor"` lewat register dan `PATCH /me`, body 2 MB, serta payload SQL dan HTML semuanya ditangani dengan benar.
+- Pada percobaan pertama tiga payload (8, 13, 14) tampak gagal. Penyebabnya skrip saya: response teman membungkus data di key `dataBersih`, sedangkan skrip membaca `data`. Skrip diperbaiki agar membaca keduanya, lalu hasilnya lulus semua.
+- Issue yang saya buat di repo teman berisi tabel hasil dan tiga saran: (1) `stack` di response error harus dipastikan hilang di production, (2) `/refresh` dan `/logout` belum memakai DTO, (3) key response tidak konsisten (`dataBersih` pada register, `data` pada endpoint peserta). Link Issue: _(isi setelah dibuat)_.
+   - Link Issue yang saya buat: https://github.com/ZidanAlfaPermana/complete-expressjs-api/issues/1
+   - Issue dari teman untuk repo ini: belum diterima sampai README ini ditulis, jadi belum ada perbaikan dari Issue tersebut. Perbaikan lain di minggu ini berasal dari review checklist sendiri (lihat tabel temuan di atas).

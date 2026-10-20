@@ -1,17 +1,16 @@
 import { Router } from "express";
 import { pesertaController } from "../controllers";
-import { validasiPeserta } from "../middlewares";
 import { validasi } from "../middlewares/validasi.middleware";
 import { authGuard } from "../middlewares/auth.middleware";
 import { requireRole } from "../middlewares/role.middleware";
 import { IdParamDto } from "../dto/common.dto";
-import { ListPesertaQueryDto, UpdateProfilDto } from "../dto/peserta.dto";
+import { CreatePesertaDto, ListPesertaQueryDto, UpdateProfilDto } from "../dto/peserta.dto";
 
 const router = Router();
 
 router.get("/", validasi(ListPesertaQueryDto, "query"), pesertaController.getSemuaPeserta);
 router.get("/:id", validasi(IdParamDto, "params"), pesertaController.getPesertaById);
-router.post("/", validasiPeserta, pesertaController.buatPeserta);
+router.post("/", validasi(CreatePesertaDto), pesertaController.buatPeserta);
 router.patch(
   "/:id",
   authGuard,
