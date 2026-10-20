@@ -3,6 +3,7 @@ import { AppDataSource } from "../config/database.config";
 import { Peserta } from "../entities/Peserta.entity";
 import { NotFoundError, ConflictError, ValidationError } from "../utils/AppError";
 import { ListQuery, escapeLike } from "../utils/pagination";
+import { hanyaYangDiisi } from "../utils/objek";
 import { CreatePesertaDto, UpdateProfilDto } from "../dto/peserta.dto";
 
 const repo = AppDataSource.getRepository(Peserta);
@@ -54,15 +55,6 @@ export async function buatPeserta(body: CreatePesertaDto): Promise<Peserta> {
     telepon: body.telepon,
   });
   return repo.save(baru);
-}
-
-// Ambil hanya field yang benar-benar diisi.
-// Dengan target ES2022, properti class yang belum diisi bisa muncul sebagai undefined,
-// jadi nilai undefined harus disaring.
-function hanyaYangDiisi<T extends object>(data: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(data).filter(([, nilai]) => nilai !== undefined)
-  ) as Partial<T>;
 }
 
 export async function ubahProfil(id: number, data: UpdateProfilDto): Promise<Peserta> {

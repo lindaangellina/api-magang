@@ -610,3 +610,47 @@ Repo teman (`ZidanAlfaPermana/complete-expressjs-api`) dijalankan lokal di port 
 - Issue yang saya buat di repo teman berisi tabel hasil dan tiga saran: (1) `stack` di response error harus dipastikan hilang di production, (2) `/refresh` dan `/logout` belum memakai DTO, (3) key response tidak konsisten (`dataBersih` pada register, `data` pada endpoint peserta). Link Issue: _(isi setelah dibuat)_.
    - Link Issue yang saya buat: https://github.com/ZidanAlfaPermana/complete-expressjs-api/issues/1
    - Issue dari teman untuk repo ini: belum diterima sampai README ini ditulis, jadi belum ada perbaikan dari Issue tersebut. Perbaikan lain di minggu ini berasal dari review checklist sendiri (lihat tabel temuan di atas).
+
+   ## Catatan: Unit Testing dengan Jest (Minggu 15, Senin)
+
+### Setup
+
+Jest + ts-jest + Supertest dipasang sebagai devDependencies. Konfigurasi ada di `jest.config.ts` dan `tsconfig.test.json` (tsconfig utama tetap hanya untuk `src`). `tests/setup.ts` mengisi semua variabel `.env` wajib sebelum modul aplikasi di-import (karena `env.config` melempar error bila ada yang kosong), dan `tests/setupAfterEnv.ts` membungkam `console` supaya output Jest bersih (`set LOG_TEST=1` untuk melihat log). Folder `coverage/` masuk `.gitignore`.
+
+Struktur: `tests/unit` (fungsi, DTO, service tanpa database), `tests/http` (Supertest, Kamis), `tests/integration` (database sungguhan, Jumat).
+
+Perintah: `npm test`, `npm run test:watch`, `npm run test:coverage`.
+
+### Test yang ditulis
+
+| File | Isi |
+|---|---|
+| `tests/unit/utils/pagination.test.ts` | `buatMeta` (5 skenario + `it.each` 8 kasus tepi) dan `escapeLike` (4 skenario) |
+| `tests/unit/utils/objek.test.ts` | `hanyaYangDiisi` (9 skenario) |
+| `tests/unit/utils/teks.test.ts` | `potongTeks`, dibuat dengan alur TDD |
+| `tests/unit/jebakan-async.test.ts` | demo jebakan test async tanpa `await` |
+
+Agar `hanyaYangDiisi` bisa diuji tanpa memuat koneksi database, fungsi itu dipindah dari `peserta.service.ts` ke `src/utils/objek.ts` dan di-export. Perilakunya tidak berubah.
+
+### Kenapa test `hanyaYangDiisi` fokus pada null, "", 0, dan false
+
+Fungsi ini dipakai untuk update sebagian (PATCH). Hanya `undefined` yang berarti "client tidak mengirim field ini". `null` berarti "kosongkan field ini" (misalnya menghapus telepon), `""`, `0`, dan `false` adalah nilai sah yang dikirim sengaja. Kalau filter ditulis sebagai `if (nilai)` atau `!!nilai`, keempatnya ikut terbuang dan update diam-diam tidak berjalan. Test memastikan filter hanya membuang `undefined`.
+
+### TDD: potongTeks
+
+Alur Red, Green, Refactor: test ditulis dulu (gagal karena `src/utils/teks.ts` belum ada), lalu kode minimal (`slice(0, max - 3) + "..."`), lalu dirapikan setelah kasus tepi ditulis. Kasus tepi menemukan masalah pada versi awal: untuk `max = 2`, hasilnya `"..."` (3 karakter) melebihi batas. Keputusan yang dipilih: hasil **tidak pernah lebih panjang dari `max`**. Maka `max <= 0` menghasilkan `""`, dan `max` 1 sampai 3 menghasilkan titik sebanyak `max`. Keputusan ini dituliskan sebagai test.
+
+### Membuktikan test bisa gagal
+
+| Perusakan | Test yang gagal |
+|---|---|
+| `buatMeta`: `hasNext: page < totalPages` diubah menjadi `page <= totalPages` | 2 test gagal: `halaman terakhir tidak punya hasNext` (diharapkan `false`, dapat `true`) dan `data kosong tetap menghasilkan 1 halaman` (diharapkan `false`, dapat `true`) |
+| `escapeLike`: regex `/[\\%_]/g` diubah menjadi `/[\\%]/g` | 1 test gagal: `meng-escape wildcard underscore` (diharapkan `"a\\_b"`, dapat `"a_b"`) |
+
+Hasil: satu perubahan kecil pada kode langsung ditangkap oleh test yang relevan (2 dari 40 test gagal pada perusakan pertama, 1 dari 40 pada perusakan kedua), dan test lain tetap lolos. Setelah kode dikembalikan, `npm test` kembali 40 dari 40 lolos dan `git diff src/utils/pagination.ts` kosong.
+
+### Jebakan async
+
+Test tanpa `await` (`expect(service.getById(99)).rejects.toThrow(...)`) dianggap selesai sebelum assertion dievaluasi, jadi hasilnya tidak bisa dipercaya. Saat dicoba di Jest 30, assertion yang gagal itu muncul **setelah** test selesai dan menjatuhkan worker (`Jest worker encountered 4 child process exceptions`), sehingga seluruh suite gagal dan tidak ada yang tahu test mana penyebabnya. Karena itu versi tanpa `await` hanya disimpan sebagai komentar di `tests/unit/jebakan-async.test.ts`.
+
+Jebakan async kedua yang dijalankan sungguhan: `try { await ... } catch (e) { expect(e)... }` tanpa `expect.assertions`. Test itu **lolos** terhadap service rusak (yang tidak melempar error), karena blok `catch` tidak pernah berjalan sehingga tidak ada assertion yang dieksekusi. Versi benar memakai `async` + `await` + `expect.assertions(1)`. Untuk membuktikan versi benar menangkap bug, assertion yang sama dijalankan terhadap service rusak lalu dibungkus `expect(...).rejects.toThrow()`: test itu lolos hanya bila bagian dalamnya memang gagal. (Percobaan awal dengan `it.failing` + `expect.assertions(1)` gagal, karena `it.failing` hanya membalik error dari isi test, bukan pemeriksaan jumlah assertion yang dilakukan setelahnya.) Aturan: test yang menyentuh promise harus `async` dan memakai `await`, dan jangan percaya test yang belum pernah kamu lihat gagal.
