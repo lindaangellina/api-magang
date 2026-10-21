@@ -704,3 +704,37 @@ Setelah `validasiDto` dipisah dari middleware, API yang sedang berjalan diuji ul
 ### Regression test
 
 `belumDireview=false` harus bernilai `false`, bukan `true` (bug `Boolean("false") === true` pada Minggu 14), dan `belumDireview=abc` ditolak. Test ini ada di `jurnal.dto.test.ts` supaya bug yang sama tidak kembali tanpa diketahui.
+
+## Catatan: Dependency Injection dan Test Service dengan Mock (Minggu 15, Rabu)
+
+### Dependency Injection
+
+Service tidak lagi mengambil repository sendiri lewat `AppDataSource.getRepository(...)`. Repository **disuntikkan lewat constructor**: di aplikasi repository asli, di test repository tiruan. Hasilnya service bisa diuji tanpa database.
+
+- `PesertaService`, `JurnalService`, dan `AuthService` kini berupa class. Nama method tidak berubah, jadi controller peserta dan jurnal tidak ikut berubah (di `auth.controller.ts` hanya import yang berganti).
+- `src/services/index.ts` menjadi satu-satunya tempat merakit service dengan repository asli. Test tidak mengimpor file ini, tetapi class-nya langsung.
+- Query login dipindah ke `PesertaAuthRepository.cariDenganPassword` (`src/repositories/peserta-auth.repository.ts`), sehingga service cukup memanggil satu method yang mudah di-mock. Query itu diuji dengan database sungguhan pada integration test (Jumat).
+
+### Mock
+
+Hanya batas luar sistem yang di-mock: repository, bcrypt, JWT, dan waktu (`Date.now`). Fungsi murni milik sendiri tidak di-mock (`tanpaPassword` tetap yang asli).
+
+### Test (45 test baru, total 263 lolos)
+
+| File | Jumlah | Yang diuji |
+|---|---|---|
+| `tests/unit/services/peserta.service.test.ts` | 14 | ambil by id, pagination (skip/take), email kembar, role dan password tidak diteruskan, ubah profil, hapus |
+| `tests/unit/services/auth.service.test.ts` | 13 | register (email kembar, password disimpan sebagai hash, hasil tanpa password), login (pesan error email tidak ada dan password salah **sama**, token, `expiresAt` tepat 7 hari), refresh, logout |
+| `tests/unit/services/jurnal.service.test.ts` | 18 | peserta tidak bisa mengubah atau menghapus jurnal peserta lain (`ForbiddenError`), mentor boleh, jurnal tidak ditemukan (`NotFoundError`), review, buat |
+
+Aturan "hanya mentor yang boleh me-review" dijaga middleware role di route (diuji lewat HTTP pada hari Kamis), jadi `updateStatusReview` di level service memang tidak membatasi pemilik jurnal.
+
+### Refleksi: "apa yang terjadi" vs "bagaimana caranya"
+
+Menguji **apa yang terjadi** berarti memeriksa hasil dan efek pentingnya, misalnya "`ConflictError` dilempar dan data tidak disimpan". Menguji **bagaimana caranya** berarti memeriksa langkah internal, misalnya argumen persis yang dikirim ke `repo.findOneBy`; test seperti itu patah setiap kali cara query diubah padahal perilakunya sama.
+
+Contoh: untuk memastikan password disimpan sebagai hash, versi berlebihan adalah `expect(pesertaRepo.buat).toHaveBeenCalledWith({ nama, sekolah, email, password: "HASH_PALSU", role: "peserta" })`, yang patah bila ditambah satu field baru. Versi yang dipakai memeriksa efeknya saja: password pada objek yang disimpan bernilai `"HASH_PALSU"` (bukan `"rahasia123"`) dan hasil register tidak memuat `password`.
+
+### Cek setelah refactor
+
+`tsc` tetap 8 error lama di `src/data/dummy.ts`, `tembak.ts` 14 dari 14 lulus, dan `npm test` 263 dari 263 lolos.
