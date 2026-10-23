@@ -767,3 +767,9 @@ Isi `DB_PASSWORD` di `.env.test` (file ini tidak dikomit). Skema dibangun otomat
 ### Suntik Bug
  
 `node tools/suntik-bug.js --ya` menyuntikkan 10 bug satu per satu pada **salinan** repository, menjalankan test, lalu mengembalikan file. Hasilnya ada di `docs/suntik-bug-hasil.md`.
+
+### Hasil Suntik Bug (mutation testing manual)
+
+`node tools/suntik-bug.js --ya` (dijalankan pada salinan repository) menyuntikkan 10 bug satu per satu, menjalankan `npm test`, lalu mengembalikan file. Hasil: **10 dari 10 bug terdeteksi** (tabel lengkap di `docs/suntik-bug-hasil.md`). Bug yang paling tipis perlindungannya adalah penerjemahan error database 23505 menjadi 409, yang hanya ditangkap oleh `tests/http/error-handler.test.ts`.
+
+Bug yang ditemukan test selama Minggu 15 dicatat di `docs/catatan-bug-minggu15.md`.
