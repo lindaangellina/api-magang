@@ -8,18 +8,18 @@ Semua path diawali `/api/v1`. Kolom "Error" memuat status error yang mungkin mun
 
 | Method | Path | Login? | Role | Sukses | Error | Test |
 |---|---|---|---|---|---|---|
-| POST | /auth/register | Tidak | - | 201 + Location | 409, 422 | ✅ 201, 409, 422 |
-| POST | /auth/login | Tidak | - | 200 | 401, 422, 429 | ✅ 200, 401, 429 |
-| POST | /auth/refresh | Tidak (refreshToken di body) | - | 200 | 401, 422 | ✅ 200, 422 |
+| POST | /auth/register | Tidak | - | 201 + Location | 409, 422 | ✅ 201, 409, 422; 409 race (integrasi) |
+| POST | /auth/login | Tidak | - | 200 | 401, 422, 429 | ✅ 200, 401, 429; alur penuh (integrasi) |
+| POST | /auth/refresh | Tidak (refreshToken di body) | - | 200 | 401, 422 | ✅ 200, 422; 401 setelah logout (integrasi) |
 | POST | /auth/logout | Tidak (refreshToken di body) | - | 200 | 422 | ✅ 200 |
 | GET | /me | Ya | peserta, mentor | 200 | 401, 404 | ✅ 200, 401 (3 jenis) |
 | PATCH | /me | Ya | peserta, mentor | 200 | 401, 404, 422 | ✅ 422 mass assignment |
 | GET | /me/jurnal | Ya | peserta, mentor | 200 | 401 | ✅ 200 |
-| GET | /peserta | Tidak | - | 200 | 422 | ✅ 200, 422 |
+| GET | /peserta | Tidak | - | 200 | 422 | ✅ 200, 422; filter+pagination 15 data (integrasi) |
 | GET | /peserta/:id | Tidak | - | 200 | 404, 422 | ✅ 200, 422 |
 | POST | /peserta | Tidak | - | 201 + Location | 409, 422 | ✅ 201 |
 | PATCH | /peserta/:id | Ya | peserta (hanya dirinya), mentor (semua) | 200 | 401, 403, 404, 422 | ✅ 200, 403 |
-| DELETE | /peserta/:id | Ya | mentor | 204 | 401, 403, 404, 409, 422 | ✅ 204, 403, 404 |
+| DELETE | /peserta/:id | Ya | mentor | 204 | 401, 403, 404, 409, 422 | ✅ 204, 403, 404; 409 FK (integrasi) |
 | GET | /peserta/:id/jurnal | Tidak | - | 200 | 404, 422 | ✅ 200 |
 | GET | /jurnal | Ya | mentor | 200 | 401, 403, 422 | ✅ 200, 403, 422 |
 | GET | /jurnal/:id | Tidak | - | 200 | 404, 422 | ✅ 200, 404 |
@@ -27,9 +27,9 @@ Semua path diawali `/api/v1`. Kolom "Error" memuat status error yang mungkin mun
 | PUT | /jurnal/:id | Ya | pemilik jurnal, mentor | 200 | 401, 403, 404, 422 | ✅ 200, 403 |
 | PATCH | /jurnal/:id/review | Ya | mentor | 200 | 401, 403, 404, 422 | ✅ 200, 403, 422 |
 | DELETE | /jurnal/:id | Ya | pemilik jurnal, mentor | 204 | 401, 403, 404, 422 | ✅ 204 |
-| GET | /stats | Tidak | - | 200 | - | 🔴 BELUM ADA TEST |
+| GET | /stats | Tidak | - | 200 | - | ✅ 200 + isi statistik (integrasi) |
 | GET | /health | Tidak | - | 200 | - | ✅ 200 |
-| GET | /health/ready | Tidak | - | 200 | 503 | 🔴 BELUM ADA TEST (butuh database, Jumat) |
+| GET | /health/ready | Tidak | - | 200 | 503 | ✅ 200, 503 (database di-mock) |
 
 Setiap endpoint yang menerima body juga bisa menghasilkan 413 `PAYLOAD_TOO_LARGE` (body lebih dari 1 MB) dan 400 `INVALID_JSON` (JSON rusak).
 
@@ -199,6 +199,9 @@ Seed 50 peserta dummy lewat `src/scripts/seed-peserta.ts`, total peserta menjadi
 |---|---|
 | `?page=6&limit=10` (halaman terakhir) | 200 OK, 7 data tersisa, `total: 57`, `totalPages: 6`, `hasNext: false`, `hasPrev: true` |
 | `?page=7&limit=10` (satu halaman di luar batas) | 200 OK, `data: []`, meta tetap konsisten |
-### Keterangan kolom Test (Minggu 15, Kamis)
 
-✅ = ada test HTTP (Supertest, service di-mock) di `tests/http/`; angka di sampingnya adalah status yang diuji. 🔴 = belum ada test. `GET /stats` belum diuji karena `statsService` belum dikontrakkan; `GET /health/ready` butuh database sungguhan, jadi diuji pada integration test Jumat. Status 409 pada `DELETE /peserta/:id` (peserta masih punya jurnal) berasal dari database, jadi juga menunggu Jumat.
+### Keterangan kolom Test (Minggu 15)
+
+✅ = ada test, angka di sampingnya adalah status yang diuji. Tanpa keterangan tambahan berarti test HTTP (Supertest, service di-mock) di `tests/http/`. "(integrasi)" berarti diuji di PostgreSQL sungguhan di `tests/integration/`. 🔴 = belum ada test; saat ini tidak ada endpoint yang bertanda 🔴.
+
+Yang diuji hanya di database sungguhan karena mock tidak bisa membuktikannya: race condition register (UNIQUE constraint), 409 saat peserta masih punya jurnal (foreign key), pagination dan filter, serta query statistik (GROUP BY dan relasi many-to-many). `GET /health/ready` diuji dengan database di-mock (200 dan 503).

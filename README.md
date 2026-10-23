@@ -1,3 +1,5 @@
+[![Test](https://github.com/lindaangellina/api-magang/actions/workflows/test.yml/badge.svg)](https://github.com/lindaangellina/api-magang/actions/workflows/test.yml)
+
 # API Magang Batch 4
 
 API untuk mengelola data peserta magang dan jurnal harian, dibangun dengan Express + TypeScript, terhubung ke database PostgreSQL lewat TypeORM, dengan autentikasi JWT (access token + refresh token) dan role-based access control. Semua endpoint berada di bawah `/api/v1`.
@@ -738,3 +740,30 @@ Contoh: untuk memastikan password disimpan sebagai hash, versi berlebihan adalah
 ### Cek setelah refactor
 
 `tsc` tetap 8 error lama di `src/data/dummy.ts`, `tembak.ts` 14 dari 14 lulus, dan `npm test` 263 dari 263 lolos.
+
+## Cara Menjalankan Test
+ 
+| Perintah | Isi | Butuh database? |
+|---|---|---|
+| `npm test` | unit test dan test HTTP (service di-mock) | Tidak |
+| `npm run test:coverage` | sama seperti di atas, plus laporan coverage di `coverage/lcov-report/index.html`; gagal bila statements di bawah 60% | Tidak |
+| `npm run test:int` | integration test: Express + PostgreSQL sungguhan | Ya (`magang_test`) |
+ 
+### Menyiapkan database test (sekali saja)
+ 
+```
+psql -U postgres -c "CREATE DATABASE magang_test;"
+copy .env.test.example .env.test
+```
+ 
+Isi `DB_PASSWORD` di `.env.test` (file ini tidak dikomit). Skema dibangun otomatis oleh `runMigrations()` saat test berjalan, jadi tidak perlu menjalankan migration manual.
+ 
+**Pengaman:** integration test menjalankan `TRUNCATE` (menghapus semua data). Test menolak berjalan bila nama database tidak berakhiran `_test`, dicek dua kali: di `tests/integration/setup.ts` (variabel env) dan di `tests/helpers/db.ts` (database yang benar-benar terhubung). Test berjalan satu per satu (`maxWorkers: 1`) karena semuanya memakai satu database.
+ 
+### CI
+ 
+`.github/workflows/test.yml` menjalankan `test:coverage` dan `test:int` pada setiap push dan pull request, dengan PostgreSQL 16 sebagai service container. Centang hijau di tab Actions berarti semua test lolos di komputer bersih.
+ 
+### Suntik Bug
+ 
+`node tools/suntik-bug.js --ya` menyuntikkan 10 bug satu per satu pada **salinan** repository, menjalankan test, lalu mengembalikan file. Hasilnya ada di `docs/suntik-bug-hasil.md`.
