@@ -773,3 +773,29 @@ Isi `DB_PASSWORD` di `.env.test` (file ini tidak dikomit). Skema dibangun otomat
 `node tools/suntik-bug.js --ya` (dijalankan pada salinan repository) menyuntikkan 10 bug satu per satu, menjalankan `npm test`, lalu mengembalikan file. Hasil: **10 dari 10 bug terdeteksi** (tabel lengkap di `docs/suntik-bug-hasil.md`). Bug yang paling tipis perlindungannya adalah penerjemahan error database 23505 menjadi 409, yang hanya ditangkap oleh `tests/http/error-handler.test.ts`.
 
 Bug yang ditemukan test selama Minggu 15 dicatat di `docs/catatan-bug-minggu15.md`.
+
+## Dokumentasi API (Swagger) — Minggu 16, Senin
+
+Dokumentasi interaktif ada di **http://localhost:3000/api/docs/** (pakai garis miring di akhir), dan dokumen mentahnya (OpenAPI 3.0.3, JSON) di **/api/docs.json**. Keduanya hanya aktif di development; di production mati kecuali `DOCS_ENABLED=true`.
+
+### Cara kerja
+
+Dokumentasi ditulis dengan pendekatan code-first memakai `swagger-jsdoc`: komentar `@openapi` (YAML) di atas setiap route dipindai oleh `src/docs/swagger.ts`, lalu digabung dengan bagian dasar (info, servers, tags) menjadi satu objek `spec`. Objek itu dipakai dua kali di `src/app.ts`: dikirim sebagai JSON di `/api/docs.json`, dan ditampilkan oleh `swagger-ui-express` di `/api/docs`. Jadi halaman Swagger UI hanya tampilan dari JSON yang sama.
+
+Saat ini yang terdokumentasi: `GET /health` (200) dan `GET /health/ready` (200 dan 503). Keduanya sudah dicoba lewat Try it out, termasuk 503 saat PostgreSQL dimatikan. Anotasi health memakai server bawaan `/api/v1` karena di API ini health memang ada di bawah `/api/v1`.
+
+### Urutan helmet
+
+Rute `/api/docs` dipasang sebelum `helmet()` global, dengan `contentSecurityPolicy: false` khusus untuk rute itu. Saat urutannya dibalik, header `Content-Security-Policy` (berisi `upgrade-insecure-requests`) ikut muncul di `/api/docs/`. Di Chrome halamannya tetap tampil normal karena Chrome membebaskan `localhost`, tetapi di Safari aset bisa gagal dimuat. Urutan yang benar dijaga oleh `tests/http/docs.test.ts`.
+
+### Mencoba merusak spesifikasi di editor.swagger.io
+
+| Kerusakan | Pesan yang muncul |
+|---|---|
+| Menghapus `description` pada response 200 | `should always have a 'description'` (baris 22, kode 3120101); halaman masih tampil |
+| Menggeser indentasi baris `summary` | `Error YAML syntax error` (baris 10); halaman gagal tampil |
+| Mengubah `type: string` menjadi `type: strng` | `should be equal to one of the allowed values: array, boolean, integer, number, object, string` (baris 19, kode 10001) |
+
+### Perbedaan OpenAPI dan Swagger
+
+OpenAPI adalah spesifikasi, yaitu format standar untuk menulis deskripsi REST API, sedangkan Swagger adalah alat-alat di sekitarnya, misalnya Swagger UI yang menampilkan spesifikasi itu jadi halaman interaktif. Dokumen API tetap perlu dibuat walau kita menulis seluruh kodenya sendiri, karena kode hanya memberi tahu apa yang dikerjakan server, bukan cara orang lain memakainya. Di Fase 3, Frontend, QA, dan n8n memakai API yang sama, jadi dokumentasi menjadi kontrak bersama yang bisa dicoba tanpa membaca kode.
