@@ -26,6 +26,14 @@ describe("Dokumentasi Swagger", () => {
     expect(res.body.paths["/health"].get.security).toEqual([]);
   });
 
+  it("Selasa: bearerAuth terdaftar dan dokumen terkunci secara default", async () => {
+    const res = await request(app).get("/api/docs.json");
+
+    expect(res.body.components.securitySchemes.bearerAuth).toMatchObject({ type: "http", scheme: "bearer", bearerFormat: "JWT" });
+    expect(res.body.security).toEqual([{ bearerAuth: [] }]);
+    expect(res.body.components.schemas.ErrorResponse.properties.error.properties.kode.enum).toContain("PAYLOAD_TOO_LARGE");
+  });
+
   it("GET /api/docs/ menyajikan halaman Swagger UI", async () => {
     const res = await request(app).get("/api/docs/");
 

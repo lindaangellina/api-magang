@@ -799,3 +799,29 @@ Rute `/api/docs` dipasang sebelum `helmet()` global, dengan `contentSecurityPoli
 ### Perbedaan OpenAPI dan Swagger
 
 OpenAPI adalah spesifikasi, yaitu format standar untuk menulis deskripsi REST API, sedangkan Swagger adalah alat-alat di sekitarnya, misalnya Swagger UI yang menampilkan spesifikasi itu jadi halaman interaktif. Dokumen API tetap perlu dibuat walau kita menulis seluruh kodenya sendiri, karena kode hanya memberi tahu apa yang dikerjakan server, bukan cara orang lain memakainya. Di Fase 3, Frontend, QA, dan n8n memakai API yang sama, jadi dokumentasi menjadi kontrak bersama yang bisa dicoba tanpa membaca kode.
+
+## Komponen reusable OpenAPI — Minggu 16, Selasa
+
+Skema, response error, parameter, dan security scheme ditulis sekali di `src/docs/components.ts`, lalu dipakai lewat `$ref` (`src/docs/helpers.ts` berisi fungsi pembantunya). Semua endpoint **terkunci secara default** (`security: [{ bearerAuth: [] }]`), jadi endpoint yang lupa diberi keamanan tetap terlindungi dan endpoint publik harus sengaja menulis `security: []`. Di `/api/docs/`, klik **Authorize** lalu tempel access token (tanpa kata `Bearer`).
+
+### Decorator DTO dan kata kunci OpenAPI
+
+Angkanya sama persis dengan DTO dan dijaga oleh `tests/unit/docs/components.test.ts`.
+
+| DTO | Field | Decorator | OpenAPI |
+|---|---|---|---|
+| `RegisterDto` | `nama` | `@IsString` `@MinLength(3)` `@MaxLength(100)` | `type: string`, `minLength: 3`, `maxLength: 100` |
+| `RegisterDto` | `email` | `@MaxLength(254)` `@IsEmail` | `format: email`, `maxLength: 254` |
+| `RegisterDto` | `password` | `@MinLength(8)` `@MaxLength(72)` `@Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/)` | `minLength: 8`, `maxLength: 72`, `pattern: ^(?=.*[A-Za-z])(?=.*\d).+$` |
+| `CreateJurnalDto` | `kegiatan` | `@MinLength(10)` `@MaxLength(2000)` | `minLength: 10`, `maxLength: 2000`, masuk `required` |
+| `CreateJurnalDto` | `linkCommit` | `@IsOptional` `@IsUrl` `@MaxLength(2048)` | `format: uri`, `maxLength: 2048`, tidak masuk `required` |
+| `CreateJurnalDto` | `lampiran` | `@ArrayMaxSize(5)` `@ValidateNested` `@Type` | `type: array`, `maxItems: 5`, `items: $ref Lampiran` |
+| `UpdateProfilDto` | `telepon` | `@IsOptional` `@Matches(/^(\+62\|62\|0)8[1-9][0-9]{6,10}$/)` | `pattern: ^(\+62\|62\|0)8[1-9][0-9]{6,10}$` |
+
+### Daftar kode error otomatis dari `ErrorCode`
+
+`ErrorResponse.error.kode` memakai `enum: Object.values(ErrorCode)`. Saya mencoba menambah `COBA_SEMENTARA` di `ErrorCode`, dan `/api/docs.json` langsung memuat nilai itu di `enum` tanpa mengubah `components.ts` (lalu saya hapus lagi). Cara ini lebih baik daripada daftar manual karena hanya ada satu sumber kebenaran: dokumentasi tidak bisa tertinggal dari kode, dan tidak ada langkah tambahan yang bisa terlupa.
+
+### Hasil impor ke editor.swagger.io
+
+`docs.json` diimpor lewat File → Import file. Hasilnya tidak ada error, hanya 11 warning `Definition was declared but never used in document` (kode 3240300). Penyebabnya komponen sudah didefinisikan tetapi belum dirujuk endpoint mana pun, karena anotasi Auth, Profil, Peserta, dan Jurnal baru dibuat Rabu dan Kamis. Warning ini sengaja tidak diperbaiki sekarang dan akan hilang setelah endpoint memakai komponennya lewat `$ref`.
