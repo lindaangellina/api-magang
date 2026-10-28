@@ -2,7 +2,7 @@ import { getMetadataStorage } from "class-validator";
 import { components } from "../../../src/docs/components";
 import { ErrorCode } from "../../../src/utils/errorCodes";
 import { RegisterDto, LoginDto, RefreshTokenDto } from "../../../src/dto/auth.dto";
-import { UpdateProfilDto } from "../../../src/dto/peserta.dto";
+import { CreatePesertaDto, UpdateProfilDto } from "../../../src/dto/peserta.dto";
 import { CreateJurnalDto, UpdateJurnalDto, LampiranDto } from "../../../src/dto/jurnal.dto";
 
 type Skema = Record<string, Record<string, unknown>>;
@@ -29,6 +29,7 @@ const PASANGAN: [new () => object, string][] = [
   [RegisterDto, "RegisterRequest"],
   [LoginDto, "LoginRequest"],
   [RefreshTokenDto, "RefreshRequest"],
+  [CreatePesertaDto, "CreatePesertaRequest"],
   [UpdateProfilDto, "UpdateProfilRequest"],
   [CreateJurnalDto, "CreateJurnalRequest"],
   [UpdateJurnalDto, "UpdateJurnalRequest"],

@@ -158,6 +158,18 @@ export const components = {
       },
     },
 
+    CreatePesertaRequest: {
+      type: "object",
+      required: ["nama", "sekolah", "email"],
+      additionalProperties: false, // role, status, fase, password, id tidak boleh dikirim
+      properties: {
+        nama: { type: "string", minLength: 3, maxLength: 100, example: "Sari Wulandari" },
+        sekolah: { type: "string", minLength: 3, maxLength: 100, example: "SMK 2 Surabaya" },
+        email: { type: "string", format: "email", maxLength: 254, example: "sari@mail.com" },
+        telepon: { type: "string", pattern: POLA_TELEPON, example: "081234567890" },
+      },
+    },
+
     // ---------------- Jurnal ----------------
     Lampiran: {
       type: "object",
@@ -212,6 +224,31 @@ export const components = {
     PesertaListResponse: bungkusDaftar(ref("Peserta")),
     JurnalResponse: bungkusSukses(ref("Jurnal")),
     JurnalListResponse: bungkusDaftar(ref("Jurnal")),
+    RefreshResponse: bungkusSukses({
+      type: "object",
+      properties: {
+        accessToken: { type: "string", description: "Access token baru, berlaku 15 menit" },
+      },
+    }),
+    // Response sukses tanpa data (mis. logout): data bernilai null
+    MessageResponse: bungkusSukses({ type: "object", nullable: true, example: null }),
+    // Jurnal milik saya memakai suksesDenganTotal: ada `total` di level atas, tanpa `meta`
+    JurnalSayaResponse: {
+      type: "object",
+      properties: {
+        sukses: { type: "boolean", example: true },
+        pesan: { type: "string", example: "Jurnal milik saya berhasil diambil" },
+        total: { type: "integer", example: 3 },
+        data: { type: "array", items: ref("Jurnal") },
+      },
+    },
+    PesertaJurnalResponse: bungkusSukses({
+      type: "object",
+      properties: {
+        peserta: { type: "object", description: "Ringkasan peserta pemilik jurnal" },
+        jurnal: { type: "array", items: ref("Jurnal") },
+      },
+    }),
     LoginResponse: bungkusSukses({
       type: "object",
       properties: {
@@ -234,7 +271,7 @@ export const components = {
     }),
 
     NotFound: responsError("Data tidak ditemukan", {
-      default: { summary: "Data tidak ada", value: contohError("NOT_FOUND", "Data tidak ditemukan") },
+      peserta: { summary: "Peserta tidak ada", value: contohError("NOT_FOUND", "Peserta tidak ditemukan") },
     }),
 
     Conflict: responsError("Bentrok dengan data yang sudah ada", {
@@ -261,8 +298,21 @@ export const components = {
       default: { summary: "Body terlalu besar", value: contohError("PAYLOAD_TOO_LARGE", "Ukuran request terlalu besar") },
     }),
 
-    TooManyRequests: responsError("Terlalu banyak percobaan", {
-      default: { summary: "Rate limit terlampaui", value: contohError("RATE_LIMITED", "Terlalu banyak percobaan, coba lagi nanti") },
-    }),
+    // Header di bawah ini sudah dibuktikan muncul lewat `curl -i` pada 429 (Soal 4).
+    TooManyRequests: (() => {
+      const dasar = responsError("Terlalu banyak percobaan (maksimal 10 login gagal per 15 menit per IP)", {
+        default: { summary: "Rate limit terlampaui", value: contohError("RATE_LIMITED", "Terlalu banyak percobaan, coba lagi nanti") },
+      });
+      return {
+        ...dasar,
+        headers: {
+          ...dasar.headers,
+          "Retry-After": { description: "Detik sampai boleh mencoba lagi", schema: { type: "integer", example: 841 } },
+          "RateLimit-Limit": { description: "Batas percobaan dalam satu jendela", schema: { type: "integer", example: 10 } },
+          "RateLimit-Remaining": { description: "Sisa percobaan (0 saat terkena limit)", schema: { type: "integer", example: 0 } },
+          "RateLimit-Reset": { description: "Detik sampai jendela direset", schema: { type: "integer", example: 841 } },
+        },
+      };
+    })(),
   },
 };
