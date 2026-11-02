@@ -12,7 +12,18 @@ export const spec = swaggerJSDoc({
       description:
         "REST API untuk program magang PT Nawasena Insan Permata.\n\n" +
         "Semua endpoint berada di bawah `/api/v1`. Format response sukses dan error " +
-        "seragam; setiap response membawa header `X-Request-Id` untuk pelacakan log.",
+        "seragam; setiap response membawa header `X-Request-Id` untuk pelacakan log.\n\n" +
+        "**Cara mencoba endpoint yang terkunci:** daftar lewat `POST /auth/register`, login lewat " +
+        "`POST /auth/login`, salin `accessToken` (berlaku 15 menit), klik **Authorize**, lalu tempel " +
+        "tokennya tanpa kata `Bearer`. Setelah kedaluwarsa, login ulang atau tukar refresh token " +
+        "lewat `POST /auth/refresh`.\n\n" +
+        "**Siapa boleh apa:** endpoint bergembok butuh login. Beberapa endpoint bacaan sengaja " +
+        "publik (daftar dan detail peserta, detail jurnal, `/stats`, health) sehingga tanpa gembok. " +
+        "`GET /jurnal` (semua jurnal) khusus mentor. Login tanpa hak yang cukup menghasilkan 403, " +
+        "sedangkan tanpa login atau token bermasalah menghasilkan 401.\n\n" +
+        "**Format error:** `{ sukses: false, error: { kode, pesan, detail? }, requestId }`. " +
+        "Input yang tidak valid menghasilkan 422 dengan `detail` per field; `requestId` sama dengan " +
+        "header `X-Request-Id` dan berguna saat melapor masalah.",
     },
     servers: [{ url: "/api/v1", description: "API v1" }],
     // Komponen reusable (schemas, responses, parameters, securitySchemes)

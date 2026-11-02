@@ -25,6 +25,8 @@ const router = Router();
  *               $ref: '#/components/schemas/PesertaResponse'
  *       '401':
  *         $ref: '#/components/responses/Unauthorized'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
  */
 router.get("/", authGuard, pesertaController.getProfilSaya);
 
@@ -61,6 +63,8 @@ router.get("/", authGuard, pesertaController.getProfilSaya);
  *               $ref: '#/components/schemas/PesertaResponse'
  *       '401':
  *         $ref: '#/components/responses/Unauthorized'
+ *       '404':
+ *         $ref: '#/components/responses/NotFound'
  *       '422':
  *         $ref: '#/components/responses/ValidationError'
  */

@@ -24,9 +24,15 @@ const ENDPOINT: [string, string, boolean, string[]][] = [
   ["patch", "/peserta/{id}", false, ["200", "401", "403", "404", "422"]],
   ["delete", "/peserta/{id}", false, ["204", "401", "403", "404", "409", "422"]],
   ["get", "/peserta/{id}/jurnal", true, ["200", "404", "422"]],
-  ["get", "/me", false, ["200", "401"]],
-  ["patch", "/me", false, ["200", "401", "422"]],
+  ["get", "/me", false, ["200", "401", "404"]],
+  ["patch", "/me", false, ["200", "401", "404", "422"]],
   ["get", "/me/jurnal", false, ["200", "401"]],
+  ["get", "/jurnal", false, ["200", "401", "403", "422"]],
+  ["post", "/jurnal", false, ["201", "401", "422"]],
+  ["get", "/jurnal/{id}", true, ["200", "404", "422"]],
+  ["put", "/jurnal/{id}", false, ["200", "401", "403", "404", "422"]],
+  ["patch", "/jurnal/{id}/review", false, ["200", "401", "403", "404", "422"]],
+  ["delete", "/jurnal/{id}", false, ["204", "401", "403", "404", "422"]],
 ];
 
 async function ambilSpec() {
@@ -59,6 +65,25 @@ describe("Dokumentasi endpoint Auth dan Peserta", () => {
     for (const metode of ["get", "patch", "delete"]) {
       expect(JSON.stringify(spec.paths["/peserta/{id}"][metode].parameters)).toContain("#/components/parameters/IdPath");
     }
+    for (const metode of ["get", "put", "delete"]) {
+      expect(JSON.stringify(spec.paths["/jurnal/{id}"][metode].parameters)).toContain("#/components/parameters/IdPath");
+    }
+  });
+
+  it("review jurnal: dua bentuk request (oneOf), catatan wajib hanya untuk status sudah", async () => {
+    const spec = await ambilSpec();
+    const skema = (spec.components as { schemas: Record<string, { oneOf: { required: string[]; properties: Record<string, { enum?: string[]; minLength?: number; maxLength?: number }> }[] }> })
+      .schemas.ReviewJurnalRequest;
+
+    expect(skema.oneOf).toHaveLength(2);
+    const [sudah, belum] = skema.oneOf;
+    expect(sudah.properties.statusReview.enum).toEqual(["sudah"]);
+    expect(sudah.required).toEqual(expect.arrayContaining(["statusReview", "catatan"]));
+    // batas sama dengan ReviewJurnalDto: MinLength(5), MaxLength(2000)
+    expect(sudah.properties.catatan.minLength).toBe(5);
+    expect(sudah.properties.catatan.maxLength).toBe(2000);
+    expect(belum.properties.statusReview.enum).toEqual(["belum"]);
+    expect(belum.required).toEqual(["statusReview"]);
   });
 
   it("semua $ref di seluruh dokumen menunjuk ke komponen yang ada", async () => {

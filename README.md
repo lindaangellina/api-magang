@@ -825,3 +825,12 @@ Angkanya sama persis dengan DTO dan dijaga oleh `tests/unit/docs/components.test
 ### Hasil impor ke editor.swagger.io
 
 `docs.json` diimpor lewat File → Import file. Hasilnya tidak ada error, hanya 11 warning `Definition was declared but never used in document` (kode 3240300). Penyebabnya komponen sudah didefinisikan tetapi belum dirujuk endpoint mana pun, karena anotasi Auth, Profil, Peserta, dan Jurnal baru dibuat Rabu dan Kamis. Warning ini sengaja tidak diperbaiki sekarang dan akan hilang setelah endpoint memakai komponennya lewat `$ref`.
+
+### Dokumentasi Jurnal (Minggu 16 Kamis)
+
+Semua endpoint jurnal (`/jurnal`, `/jurnal/{id}`, `/jurnal/{id}/review`, `/me/jurnal`) dan `/stats` sudah terdokumentasi di Swagger UI (`/api/docs/`), lengkap dengan contoh request, semua error, serta aturan role dan kepemilikan.
+
+- **Review bersyarat:** `PATCH /jurnal/{id}/review` memakai `oneOf`. Status `sudah` wajib disertai `catatan` (5-2000 karakter), tanpa itu hasilnya 422. Status `belum` tidak butuh catatan. Sudah diuji lewat Try it out sebagai mentor.
+- **Beda dengan materi:** perubahan isi jurnal memakai `PUT /jurnal/{id}` (perilakunya parsial), bukan PATCH; beberapa endpoint bacaan sengaja publik; jumlah di `/stats` berupa string karena begitulah Postgres mengembalikan COUNT.
+- **`reviewerId`** saat ini selalu `null` karena server belum mengisinya.
+- **Anti-drift:** `tests/unit/docs/components.test.ts` mencocokkan batas schema dengan DTO, `tests/http/docs-endpoint.test.ts` memeriksa kelengkapan tiap endpoint, dan `tests/http/docs-audit.test.ts` memastikan setiap endpoint di `docs/endpoint-audit.md` ada di dokumentasi.

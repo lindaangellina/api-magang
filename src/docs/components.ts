@@ -189,7 +189,12 @@ export const components = {
         hambatan: { type: "string", nullable: true, example: "Anotasi YAML masih sering salah indentasi" },
         linkCommit: { type: "string", format: "uri", nullable: true, example: "https://github.com/lindaangellina/api-magang/commit/abc1234" },
         statusReview: { type: "string", enum: ["belum", "sudah"] },
-        reviewerId: { type: "integer", nullable: true, readOnly: true },
+        reviewerId: {
+          type: "integer",
+          nullable: true,
+          readOnly: true,
+          description: "Id mentor pereview. Saat ini server belum mengisinya, sehingga nilainya selalu null (terbukti pada response review).",
+        },
         catatanMentor: { type: "string", nullable: true, readOnly: true },
         lampiran: { type: "array", nullable: true, items: ref("Lampiran") },
         createdAt: { type: "string", format: "date-time", readOnly: true },
@@ -219,6 +224,32 @@ export const components = {
       },
     },
 
+    // Validasi bersyarat: catatan WAJIB hanya bila statusReview = sudah (ReviewJurnalDto memakai ValidateIf)
+    ReviewJurnalRequest: {
+      oneOf: [
+        {
+          type: "object",
+          title: "Ditandai sudah direview (catatan wajib)",
+          required: ["statusReview", "catatan"],
+          additionalProperties: false,
+          properties: {
+            statusReview: { type: "string", enum: ["sudah"] },
+            catatan: { type: "string", minLength: 5, maxLength: 2000, example: "Sudah bagus, lanjutkan." },
+          },
+        },
+        {
+          type: "object",
+          title: "Dikembalikan ke belum direview (catatan tidak diperlukan)",
+          required: ["statusReview"],
+          additionalProperties: false,
+          properties: {
+            statusReview: { type: "string", enum: ["belum"] },
+            catatan: { type: "string", description: "Diabaikan dan tidak disimpan; catatan mentor yang lama dikosongkan" },
+          },
+        },
+      ],
+    },
+
     // ---------------- Pembungkus response sukses ----------------
     PesertaResponse: bungkusSukses(ref("Peserta")),
     PesertaListResponse: bungkusDaftar(ref("Peserta")),
@@ -242,10 +273,41 @@ export const components = {
         data: { type: "array", items: ref("Jurnal") },
       },
     },
+    StatsResponse: bungkusSukses({
+      type: "object",
+      properties: {
+        totalPeserta: { type: "integer", example: 86 },
+        totalJurnal: { type: "integer", example: 15 },
+        jurnalBelumDireview: { type: "integer", example: 13 },
+        rataRataJurnalPerPeserta: { type: "number", description: "Dibulatkan 2 angka desimal; 0 jika belum ada peserta", example: 0.17 },
+        jurnalPerPeserta: {
+          type: "array",
+          description: "Hanya peserta yang punya jurnal. `totalJurnal` berupa teks karena hasil COUNT dari PostgreSQL.",
+          items: {
+            type: "object",
+            properties: {
+              pesertaId: { type: "integer", example: 69 },
+              totalJurnal: { type: "string", example: "6" },
+            },
+          },
+        },
+        skillTerpopuler: {
+          type: "array",
+          description: "Lima skill yang paling banyak dipakai peserta. `jumlahPeserta` berupa teks karena hasil COUNT dari PostgreSQL.",
+          items: {
+            type: "object",
+            properties: {
+              namaSkill: { type: "string", example: "PostgreSQL" },
+              jumlahPeserta: { type: "string", example: "2" },
+            },
+          },
+        },
+      },
+    }),
     PesertaJurnalResponse: bungkusSukses({
       type: "object",
       properties: {
-        peserta: { type: "object", description: "Ringkasan peserta pemilik jurnal" },
+        peserta: { type: "string", description: "Nama peserta pemilik jurnal", example: "Budi Santoso" },
         jurnal: { type: "array", items: ref("Jurnal") },
       },
     }),
@@ -260,7 +322,7 @@ export const components = {
   },
 
   responses: {
-    Unauthorized: responsError("Belum login, token tidak valid, atau token kedaluwarsa", {
+    Unauthorized: responsError("Belum login, token tidak valid, atau token kedaluwarsa. Kalau kodenya TOKEN_EXPIRED, tukar refresh token lewat POST /auth/refresh atau login ulang", {
       tokenHilang: { summary: "Token tidak dikirim", value: contohError("UNAUTHORIZED", "Silakan login terlebih dahulu") },
       tokenKedaluwarsa: { summary: "Access token kedaluwarsa", value: contohError("TOKEN_EXPIRED", "Token sudah kedaluwarsa") },
       tokenPalsu: { summary: "Token tidak valid", value: contohError("INVALID_TOKEN", "Token tidak valid") },
