@@ -15,7 +15,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:int": "jest --config jest.integration.config.ts"
+    "test:int": "jest --config jest.integration.config.ts",
+    "docs:export": "ts-node src/scripts/export-docs.ts"
   },
   "keywords": [],
   "author": "",
@@ -37,7 +38,7 @@
     "typeorm": "^1.1.1"
   },
   "devDependencies": {
-    "@apidevtools/swagger-parser": "^13.1.0",
+    "@apidevtools/swagger-parser": "^10.1.1",
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

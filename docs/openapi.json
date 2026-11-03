@@ -1,0 +1,2542 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "API Magang Batch 4",
+    "version": "1.0.0",
+    "description": "REST API untuk program magang PT Nawasena Insan Permata.\n\nSemua endpoint berada di bawah `/api/v1`. Format response sukses dan error seragam; setiap response membawa header `X-Request-Id` untuk pelacakan log.\n\n**Cara mencoba endpoint yang terkunci:** daftar lewat `POST /auth/register`, login lewat `POST /auth/login`, salin `accessToken` (berlaku 15 menit), klik **Authorize**, lalu tempel tokennya tanpa kata `Bearer`. Setelah kedaluwarsa, login ulang atau tukar refresh token lewat `POST /auth/refresh`.\n\n**Siapa boleh apa:** endpoint bergembok butuh login. Beberapa endpoint bacaan sengaja publik (daftar dan detail peserta, detail jurnal, `/stats`, health) sehingga tanpa gembok. `GET /jurnal` (semua jurnal) khusus mentor. Login tanpa hak yang cukup menghasilkan 403, sedangkan tanpa login atau token bermasalah menghasilkan 401.\n\n**Format error:** `{ sukses: false, error: { kode, pesan, detail? }, requestId }`. Input yang tidak valid menghasilkan 422 dengan `detail` per field; `requestId` sama dengan header `X-Request-Id` dan berguna saat melapor masalah."
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "API v1"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Tempel access token dari POST /auth/login (tanpa kata Bearer)."
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "description": "Nomor halaman (mulai 1)",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000,
+          "default": 1
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "description": "Jumlah data per halaman",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10
+        }
+      },
+      "Order": {
+        "name": "order",
+        "in": "query",
+        "description": "Arah pengurutan",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "ASC",
+            "DESC"
+          ],
+          "default": "DESC"
+        }
+      },
+      "Q": {
+        "name": "q",
+        "in": "query",
+        "description": "Kata kunci pencarian",
+        "schema": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "IdPath": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "ID data",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      }
+    },
+    "headers": {
+      "XRequestId": {
+        "description": "ID unik request, gunakan saat melapor error agar mudah dilacak di log",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "schemas": {
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "total": {
+            "type": "integer",
+            "example": 42
+          },
+          "totalPages": {
+            "type": "integer",
+            "example": 5
+          },
+          "hasNext": {
+            "type": "boolean",
+            "example": true
+          },
+          "hasPrev": {
+            "type": "boolean",
+            "example": false
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "example": "email",
+            "description": "Nama field; notasi titik untuk objek bersarang (lampiran.1.url)"
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Format email tidak valid"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "kode",
+              "pesan"
+            ],
+            "properties": {
+              "kode": {
+                "type": "string",
+                "enum": [
+                  "VALIDATION_ERROR",
+                  "INVALID_JSON",
+                  "PAYLOAD_TOO_LARGE",
+                  "UNAUTHORIZED",
+                  "TOKEN_EXPIRED",
+                  "INVALID_TOKEN",
+                  "FORBIDDEN",
+                  "NOT_FOUND",
+                  "CONFLICT",
+                  "RATE_LIMITED",
+                  "INTERNAL_ERROR"
+                ]
+              },
+              "pesan": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FieldError"
+                }
+              }
+            }
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Peserta": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true,
+            "example": 1
+          },
+          "nama": {
+            "type": "string",
+            "example": "Budi Santoso"
+          },
+          "sekolah": {
+            "type": "string",
+            "example": "SMK 5 Malang"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "budi@mail.com"
+          },
+          "telepon": {
+            "type": "string",
+            "nullable": true,
+            "example": "081234567890"
+          },
+          "fase": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "example": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "aktif",
+              "berhenti",
+              "lulus"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "peserta",
+              "mentor"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "nama",
+          "sekolah",
+          "email",
+          "password",
+          "konfirmasiPassword"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "nama": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100,
+            "example": "Budi Santoso"
+          },
+          "sekolah": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100,
+            "example": "SMK 5 Malang"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254,
+            "example": "budi@mail.com",
+            "description": "Dinormalkan: spasi tepi dibuang, jadi huruf kecil"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "minLength": 8,
+            "maxLength": 72,
+            "pattern": "^(?=.*[A-Za-z])(?=.*\\d).+$",
+            "description": "Wajib mengandung huruf dan angka. Maksimal 72 karakter (batas bcrypt)."
+          },
+          "konfirmasiPassword": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "description": "Harus sama dengan password"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254,
+            "example": "budi@mail.com"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "maxLength": 72
+          }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "required": [
+          "refreshToken"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Refresh token dari POST /auth/login"
+          }
+        }
+      },
+      "UpdateProfilRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Semua field opsional; kirim hanya yang ingin diubah.",
+        "properties": {
+          "nama": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "sekolah": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "telepon": {
+            "type": "string",
+            "pattern": "^(\\+62|62|0)8[1-9][0-9]{6,10}$",
+            "example": "081234567890"
+          }
+        }
+      },
+      "CreatePesertaRequest": {
+        "type": "object",
+        "required": [
+          "nama",
+          "sekolah",
+          "email"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "nama": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100,
+            "example": "Sari Wulandari"
+          },
+          "sekolah": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100,
+            "example": "SMK 2 Surabaya"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254,
+            "example": "sari@mail.com"
+          },
+          "telepon": {
+            "type": "string",
+            "pattern": "^(\\+62|62|0)8[1-9][0-9]{6,10}$",
+            "example": "081234567890"
+          }
+        }
+      },
+      "Lampiran": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "example": "https://drive.google.com/file/d/abc123"
+          },
+          "keterangan": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "Screenshot hasil test"
+          }
+        }
+      },
+      "Jurnal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "readOnly": true,
+            "example": 7
+          },
+          "pesertaId": {
+            "type": "integer",
+            "readOnly": true,
+            "example": 1
+          },
+          "kegiatan": {
+            "type": "string",
+            "example": "Belajar membuat dokumentasi API dengan Swagger"
+          },
+          "hambatan": {
+            "type": "string",
+            "nullable": true,
+            "example": "Anotasi YAML masih sering salah indentasi"
+          },
+          "linkCommit": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "example": "https://github.com/lindaangellina/api-magang/commit/abc1234"
+          },
+          "statusReview": {
+            "type": "string",
+            "enum": [
+              "belum",
+              "sudah"
+            ]
+          },
+          "reviewerId": {
+            "type": "integer",
+            "nullable": true,
+            "readOnly": true,
+            "description": "Id mentor pereview. Saat ini server belum mengisinya, sehingga nilainya selalu null (terbukti pada response review)."
+          },
+          "catatanMentor": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "lampiran": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/Lampiran"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        }
+      },
+      "CreateJurnalRequest": {
+        "type": "object",
+        "required": [
+          "kegiatan"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kegiatan": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 2000
+          },
+          "hambatan": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "linkCommit": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048
+          },
+          "lampiran": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/Lampiran"
+            }
+          }
+        }
+      },
+      "UpdateJurnalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Semua field opsional; kirim hanya yang ingin diubah.",
+        "properties": {
+          "kegiatan": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 2000
+          },
+          "hambatan": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "linkCommit": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048
+          }
+        }
+      },
+      "ReviewJurnalRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "title": "Ditandai sudah direview (catatan wajib)",
+            "required": [
+              "statusReview",
+              "catatan"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "statusReview": {
+                "type": "string",
+                "enum": [
+                  "sudah"
+                ]
+              },
+              "catatan": {
+                "type": "string",
+                "minLength": 5,
+                "maxLength": 2000,
+                "example": "Sudah bagus, lanjutkan."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "Dikembalikan ke belum direview (catatan tidak diperlukan)",
+            "required": [
+              "statusReview"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "statusReview": {
+                "type": "string",
+                "enum": [
+                  "belum"
+                ]
+              },
+              "catatan": {
+                "type": "string",
+                "description": "Diabaikan dan tidak disimpan; catatan mentor yang lama dikosongkan"
+              }
+            }
+          }
+        ]
+      },
+      "PesertaResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Peserta"
+          }
+        }
+      },
+      "PesertaListResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Peserta"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "JurnalResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Jurnal"
+          }
+        }
+      },
+      "JurnalListResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Jurnal"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "RefreshResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "accessToken": {
+                "type": "string",
+                "description": "Access token baru, berlaku 15 menit"
+              }
+            }
+          }
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "type": "object",
+            "nullable": true,
+            "example": null
+          }
+        }
+      },
+      "JurnalSayaResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Jurnal milik saya berhasil diambil"
+          },
+          "total": {
+            "type": "integer",
+            "example": 3
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Jurnal"
+            }
+          }
+        }
+      },
+      "StatsResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "totalPeserta": {
+                "type": "integer",
+                "example": 86
+              },
+              "totalJurnal": {
+                "type": "integer",
+                "example": 15
+              },
+              "jurnalBelumDireview": {
+                "type": "integer",
+                "example": 13
+              },
+              "rataRataJurnalPerPeserta": {
+                "type": "number",
+                "description": "Dibulatkan 2 angka desimal; 0 jika belum ada peserta",
+                "example": 0.17
+              },
+              "jurnalPerPeserta": {
+                "type": "array",
+                "description": "Hanya peserta yang punya jurnal. `totalJurnal` berupa teks karena hasil COUNT dari PostgreSQL.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pesertaId": {
+                      "type": "integer",
+                      "example": 69
+                    },
+                    "totalJurnal": {
+                      "type": "string",
+                      "example": "6"
+                    }
+                  }
+                }
+              },
+              "skillTerpopuler": {
+                "type": "array",
+                "description": "Lima skill yang paling banyak dipakai peserta. `jumlahPeserta` berupa teks karena hasil COUNT dari PostgreSQL.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "namaSkill": {
+                      "type": "string",
+                      "example": "PostgreSQL"
+                    },
+                    "jumlahPeserta": {
+                      "type": "string",
+                      "example": "2"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "PesertaJurnalResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "peserta": {
+                "type": "string",
+                "description": "Nama peserta pemilik jurnal",
+                "example": "Budi Santoso"
+              },
+              "jurnal": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Jurnal"
+                }
+              }
+            }
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "sukses": {
+            "type": "boolean",
+            "example": true
+          },
+          "pesan": {
+            "type": "string",
+            "example": "Berhasil"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "accessToken": {
+                "type": "string",
+                "description": "Berlaku 15 menit"
+              },
+              "refreshToken": {
+                "type": "string",
+                "description": "Berlaku 7 hari, tukarkan di /auth/refresh"
+              },
+              "peserta": {
+                "$ref": "#/components/schemas/Peserta"
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Belum login, token tidak valid, atau token kedaluwarsa. Kalau kodenya TOKEN_EXPIRED, tukar refresh token lewat POST /auth/refresh atau login ulang",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "tokenHilang": {
+                "summary": "Token tidak dikirim",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "UNAUTHORIZED",
+                    "pesan": "Silakan login terlebih dahulu"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              },
+              "tokenKedaluwarsa": {
+                "summary": "Access token kedaluwarsa",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "TOKEN_EXPIRED",
+                    "pesan": "Token sudah kedaluwarsa"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              },
+              "tokenPalsu": {
+                "summary": "Token tidak valid",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "INVALID_TOKEN",
+                    "pesan": "Token tidak valid"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Sudah login, tetapi tidak berhak melakukan aksi ini",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "bukanMentor": {
+                "summary": "Aksi khusus mentor",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "FORBIDDEN",
+                    "pesan": "Kamu tidak berhak melakukan aksi ini"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Data tidak ditemukan",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "peserta": {
+                "summary": "Peserta tidak ada",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "NOT_FOUND",
+                    "pesan": "Peserta tidak ditemukan"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Bentrok dengan data yang sudah ada",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "duplikat": {
+                "summary": "Nilai unik sudah dipakai",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "CONFLICT",
+                    "pesan": "Data dengan nilai yang sama sudah ada"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Input tidak lolos validasi (JSON rusak dikembalikan 400 INVALID_JSON)",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "banyakField": {
+                "summary": "Beberapa field salah",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "VALIDATION_ERROR",
+                    "pesan": "Validasi gagal",
+                    "detail": [
+                      {
+                        "field": "email",
+                        "pesan": "Format email tidak valid"
+                      },
+                      {
+                        "field": "password",
+                        "pesan": "Password minimal 8 karakter"
+                      }
+                    ]
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              },
+              "propertiAsing": {
+                "summary": "Properti yang tidak diizinkan (mass assignment)",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "VALIDATION_ERROR",
+                    "pesan": "Validasi gagal",
+                    "detail": [
+                      {
+                        "field": "role",
+                        "pesan": "Properti ini tidak diizinkan"
+                      }
+                    ]
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "Ukuran body request melebihi batas (1 MB)",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "summary": "Body terlalu besar",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "PAYLOAD_TOO_LARGE",
+                    "pesan": "Ukuran request terlalu besar"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Terlalu banyak percobaan (maksimal 10 login gagal per 15 menit per IP)",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          },
+          "Retry-After": {
+            "description": "Detik sampai boleh mencoba lagi",
+            "schema": {
+              "type": "integer",
+              "example": 841
+            }
+          },
+          "RateLimit-Limit": {
+            "description": "Batas percobaan dalam satu jendela",
+            "schema": {
+              "type": "integer",
+              "example": 10
+            }
+          },
+          "RateLimit-Remaining": {
+            "description": "Sisa percobaan (0 saat terkena limit)",
+            "schema": {
+              "type": "integer",
+              "example": 0
+            }
+          },
+          "RateLimit-Reset": {
+            "description": "Detik sampai jendela direset",
+            "schema": {
+              "type": "integer",
+              "example": 841
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "default": {
+                "summary": "Rate limit terlampaui",
+                "value": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "RATE_LIMITED",
+                    "pesan": "Terlalu banyak percobaan, coba lagi nanti"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Registrasi, login, refresh token, logout"
+    },
+    {
+      "name": "Profil",
+      "description": "Data milik pengguna yang sedang login"
+    },
+    {
+      "name": "Peserta",
+      "description": "Pengelolaan data peserta"
+    },
+    {
+      "name": "Jurnal",
+      "description": "Jurnal harian dan proses review mentor"
+    },
+    {
+      "name": "Sistem",
+      "description": "Health check"
+    }
+  ],
+  "paths": {
+    "/stats": {
+      "get": {
+        "tags": [
+          "Sistem"
+        ],
+        "summary": "Ringkasan statistik peserta dan jurnal",
+        "description": "Menghitung total peserta, total jurnal, jumlah jurnal yang belum direview, rata-rata jurnal\nper peserta, jumlah jurnal tiap peserta, dan lima skill terpopuler.\nEndpoint ini saat ini **publik** (tanpa login). Jika database masih kosong, semua angka 0\ndan daftar kosong.\n",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Statistik berhasil diambil",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/peserta": {
+      "get": {
+        "tags": [
+          "Peserta"
+        ],
+        "summary": "Daftar peserta",
+        "description": "Endpoint ini saat ini **publik** (tanpa login), sesuai kode di `peserta.routes.ts`.\nMendukung pagination, filter, pengurutan, dan pencarian.\nParameter yang tidak valid ditolak dengan 422 (tidak dikoreksi diam-diam).\n",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Order"
+          },
+          {
+            "$ref": "#/components/parameters/Q"
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "description": "Kolom pengurutan",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "nama",
+                "fase",
+                "createdAt"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sekolah",
+            "description": "Filter berdasarkan sekolah",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "in": "query",
+            "name": "fase",
+            "description": "Filter berdasarkan fase",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daftar peserta",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesertaListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Peserta"
+        ],
+        "summary": "Tambah data peserta",
+        "description": "Menambah data peserta tanpa akun login (tanpa password). Endpoint ini saat ini **publik**.\n`role`, `status`, `fase`, `password`, dan `id` tidak bisa diisi lewat body\n(ditolak 422). Untuk membuat akun yang bisa login, gunakan `/auth/register`.\n",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePesertaRequest"
+              },
+              "examples": {
+                "valid": {
+                  "summary": "Payload valid",
+                  "value": {
+                    "nama": "Sari Wulandari",
+                    "sekolah": "SMK 2 Surabaya",
+                    "email": "sari@mail.com",
+                    "telepon": "081234567890"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Peserta berhasil ditambahkan",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Location": {
+                "description": "URL peserta yang baru dibuat",
+                "schema": {
+                  "type": "string",
+                  "example": "/api/v1/peserta/2"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesertaResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email sudah terdaftar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "CONFLICT",
+                    "pesan": "Email sudah terdaftar"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/peserta/{id}": {
+      "get": {
+        "tags": [
+          "Peserta"
+        ],
+        "summary": "Detail satu peserta",
+        "description": "Endpoint ini saat ini **publik** (tanpa login). Password tidak pernah ikut keluar.",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detail peserta",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesertaResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Peserta"
+        ],
+        "summary": "Ubah data peserta",
+        "description": "Peserta hanya boleh mengubah **dirinya sendiri**; mentor boleh mengubah siapa saja.\nHanya `nama`, `sekolah`, dan `telepon` yang boleh diubah. Properti lain\n(termasuk `role`, `email`, `password`) **ditolak dengan 422**.\nMinimal satu field harus diisi.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfilRequest"
+              },
+              "examples": {
+                "ubahSekolah": {
+                  "summary": "Ubah sekolah saja",
+                  "value": {
+                    "sekolah": "SMK 1 Malang"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Peserta berhasil diubah",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesertaResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Peserta mencoba mengubah data peserta lain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "FORBIDDEN",
+                    "pesan": "Kamu tidak berhak mengubah data peserta lain"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Peserta"
+        ],
+        "summary": "Hapus peserta (khusus mentor)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Berhasil dihapus (tanpa body)",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Peserta masih punya data terkait (mis. jurnal) sehingga tidak bisa dihapus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "CONFLICT",
+                    "pesan": "Data berelasi dengan data lain (tidak ditemukan atau masih dipakai)"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/peserta/{id}/jurnal": {
+      "get": {
+        "tags": [
+          "Peserta"
+        ],
+        "summary": "Daftar jurnal milik seorang peserta",
+        "description": "Endpoint ini saat ini **publik** (tanpa login).",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jurnal milik peserta",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesertaJurnalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "Profil"
+        ],
+        "summary": "Lihat profil sendiri",
+        "description": "Data diambil berdasarkan token, jadi tidak perlu mengirim id.",
+        "responses": {
+          "200": {
+            "description": "Profil berhasil diambil",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesertaResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Profil"
+        ],
+        "summary": "Ubah profil sendiri",
+        "description": "Hanya `nama`, `sekolah`, dan `telepon` yang boleh diubah.\nProperti lain (termasuk `role`, `email`, `password`) **ditolak dengan 422**\nuntuk mencegah mass assignment. Minimal satu field harus diisi.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfilRequest"
+              },
+              "examples": {
+                "ubahNama": {
+                  "summary": "Ubah nama saja",
+                  "value": {
+                    "nama": "Budi Santoso Putra"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profil berhasil diubah",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesertaResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/me/jurnal": {
+      "get": {
+        "tags": [
+          "Profil"
+        ],
+        "summary": "Daftar jurnal milik sendiri",
+        "description": "Seluruh jurnal milik pengguna yang sedang login (tanpa pagination; ada field `total`).",
+        "responses": {
+          "200": {
+            "description": "Jurnal milik saya",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JurnalSayaResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/jurnal": {
+      "get": {
+        "tags": [
+          "Jurnal"
+        ],
+        "summary": "Daftar semua jurnal (khusus mentor)",
+        "description": "Mengembalikan jurnal seluruh peserta dengan pagination.\n- Hanya role `mentor`. Peserta mendapat 403; gunakan `/me/jurnal` untuk jurnal sendiri.\n- `from` dan `to` memfilter berdasarkan tanggal pembuatan (format `YYYY-MM-DD`, tanggal\n  yang tidak ada seperti `2026-02-31` ditolak). Keduanya boleh dipakai sendiri-sendiri.\n- `belumDireview=true` setara dengan `statusReview=belum`, dan `belumDireview=false`\n  setara dengan `statusReview=sudah`. Jika keduanya dikirim dan saling bertentangan,\n  hasilnya 422 (tidak ada yang dipilih diam-diam).\n- Parameter yang tidak valid ditolak dengan 422, tidak dikoreksi diam-diam.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Order"
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "description": "Kolom pengurutan",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "statusReview"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pesertaId",
+            "description": "Hanya jurnal milik peserta ini",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            }
+          },
+          {
+            "in": "query",
+            "name": "statusReview",
+            "description": "Filter status review",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "belum",
+                "sudah"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "description": "Tanggal awal (termasuk), format YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-10-01"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "description": "Tanggal akhir (termasuk), format YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-10-31"
+            }
+          },
+          {
+            "in": "query",
+            "name": "belumDireview",
+            "description": "Pintasan untuk filter statusReview (true = belum, false = sudah)",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daftar jurnal",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JurnalListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Jurnal"
+        ],
+        "summary": "Buat jurnal harian baru",
+        "description": "Jurnal otomatis dimiliki pengguna yang login dan berstatus `belum` direview.\n`pesertaId` dan `statusReview` tidak boleh dikirim lewat body (ditolak 422).\nLampiran maksimal 5 item; kesalahan pada item lampiran dilaporkan dengan notasi titik,\nmisalnya `lampiran.1.url` untuk lampiran kedua (indeks mulai dari 0).\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJurnalRequest"
+              },
+              "examples": {
+                "sederhana": {
+                  "summary": "Tanpa lampiran",
+                  "value": {
+                    "kegiatan": "Belajar unit testing dengan Jest dan Supertest"
+                  }
+                },
+                "denganLampiran": {
+                  "summary": "Dengan lampiran tangkapan layar",
+                  "value": {
+                    "kegiatan": "Menulis test untuk DTO dan service",
+                    "hambatan": "Bingung cara mock repository",
+                    "linkCommit": "https://github.com/lindaangellina/api-magang/commit/abc1234",
+                    "lampiran": [
+                      {
+                        "url": "https://contoh.com/ss1.png",
+                        "keterangan": "Hasil npm test"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Jurnal berhasil dibuat",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Location": {
+                "description": "URL jurnal yang baru dibuat",
+                "schema": {
+                  "type": "string",
+                  "example": "/api/v1/jurnal/7"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JurnalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Input tidak valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "lampiranSalah": {
+                    "summary": "URL pada lampiran kedua tidak valid",
+                    "value": {
+                      "sukses": false,
+                      "error": {
+                        "kode": "VALIDATION_ERROR",
+                        "pesan": "Validasi gagal",
+                        "detail": [
+                          {
+                            "field": "lampiran.1.url",
+                            "pesan": "URL lampiran tidak valid"
+                          }
+                        ]
+                      },
+                      "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                    }
+                  },
+                  "pesertaIdDikirim": {
+                    "summary": "Mengirim properti yang tidak diizinkan",
+                    "value": {
+                      "sukses": false,
+                      "error": {
+                        "kode": "VALIDATION_ERROR",
+                        "pesan": "Validasi gagal",
+                        "detail": [
+                          {
+                            "field": "pesertaId",
+                            "pesan": "Properti ini tidak diizinkan"
+                          }
+                        ]
+                      },
+                      "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jurnal/{id}": {
+      "get": {
+        "tags": [
+          "Jurnal"
+        ],
+        "summary": "Detail satu jurnal",
+        "description": "Endpoint ini saat ini **publik** (tanpa login), sesuai kode di `jurnal.routes.ts`.",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detail jurnal",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JurnalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Jurnal tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "NOT_FOUND",
+                    "pesan": "Jurnal tidak ditemukan"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Jurnal"
+        ],
+        "summary": "Ubah isi jurnal",
+        "description": "Hanya pemilik jurnal atau mentor yang boleh mengubah; peserta lain mendapat 403.\nYang bisa diubah hanya `kegiatan`, `hambatan`, dan `linkCommit`. Field yang tidak\ndikirim tidak diubah (perilakunya seperti PATCH), dan minimal satu field harus diisi.\nStatus review dan pemilik jurnal tidak bisa diubah lewat endpoint ini.\n\n**Bedanya dengan `PATCH /jurnal/{id}/review`:** endpoint ini mengubah ISI jurnal\n(oleh pemilik atau mentor), sedangkan `/review` hanya mengubah STATUS review\ndan khusus mentor.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJurnalRequest"
+              },
+              "examples": {
+                "ubahHambatan": {
+                  "summary": "Mengisi hambatan saja",
+                  "value": {
+                    "hambatan": "Masih bingung membedakan mock dan stub"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Jurnal berhasil diubah",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JurnalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Jurnal ini milik peserta lain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "FORBIDDEN",
+                    "pesan": "Kamu tidak berhak mengubah jurnal ini"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Jurnal tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "NOT_FOUND",
+                    "pesan": "Jurnal tidak ditemukan"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Jurnal"
+        ],
+        "summary": "Hapus jurnal",
+        "description": "Hanya pemilik jurnal atau mentor yang boleh menghapus; peserta lain mendapat 403.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Berhasil dihapus (tanpa body)",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Jurnal ini milik peserta lain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "FORBIDDEN",
+                    "pesan": "Kamu tidak berhak menghapus jurnal ini"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Jurnal tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "NOT_FOUND",
+                    "pesan": "Jurnal tidak ditemukan"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/jurnal/{id}/review": {
+      "patch": {
+        "tags": [
+          "Jurnal"
+        ],
+        "summary": "Tandai status review jurnal (khusus mentor)",
+        "description": "Hanya role `mentor`. Ada dua bentuk request yang sah:\n- `statusReview: sudah` **wajib** disertai `catatan` (5 sampai 2000 karakter).\n  Tanpa catatan hasilnya 422.\n- `statusReview: belum` mengembalikan jurnal ke status belum direview. `catatan`\n  tidak diperlukan: kalau dikirim, nilainya diabaikan dan catatan mentor yang lama dikosongkan.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewJurnalRequest"
+              },
+              "examples": {
+                "sudah": {
+                  "summary": "Ditandai sudah direview (catatan wajib)",
+                  "value": {
+                    "statusReview": "sudah",
+                    "catatan": "Sudah bagus, lanjutkan."
+                  }
+                },
+                "belum": {
+                  "summary": "Dikembalikan ke belum direview",
+                  "value": {
+                    "statusReview": "belum"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status review berhasil diperbarui",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JurnalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Jurnal tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "NOT_FOUND",
+                    "pesan": "Jurnal tidak ditemukan"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validasi gagal. Untuk `statusReview: sudah` tanpa `catatan`, field `catatan`\nmuncul tiga kali di `detail` (satu per aturan yang dilanggar); perbaiki dengan mengisi `catatan` 5 sampai 2000 karakter.\n",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "sudahTanpaCatatan": {
+                    "summary": "Status sudah tanpa catatan",
+                    "value": {
+                      "sukses": false,
+                      "error": {
+                        "kode": "VALIDATION_ERROR",
+                        "pesan": "Validasi gagal",
+                        "detail": [
+                          {
+                            "field": "catatan",
+                            "pesan": "Catatan maksimal 2000 karakter"
+                          },
+                          {
+                            "field": "catatan",
+                            "pesan": "Catatan minimal 5 karakter"
+                          },
+                          {
+                            "field": "catatan",
+                            "pesan": "Catatan wajib diisi saat jurnal ditandai sudah direview"
+                          }
+                        ]
+                      },
+                      "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistem"
+        ],
+        "summary": "Cek apakah server hidup (liveness)",
+        "description": "Tidak menyentuh database, jadi tetap menjawab walau database mati.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Server hidup",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "uptime": {
+                      "type": "number",
+                      "description": "Lama server berjalan dalam detik",
+                      "example": 1234.56
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "Sistem"
+        ],
+        "summary": "Cek apakah server siap melayani request (readiness)",
+        "description": "Menjalankan `SELECT 1` ke database. 503 berarti server hidup tetapi database tidak bisa dihubungi.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Server dan database siap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ready"
+                    },
+                    "database": {
+                      "type": "string",
+                      "example": "up"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database tidak bisa dihubungi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "not_ready"
+                    },
+                    "database": {
+                      "type": "string",
+                      "example": "down"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Daftarkan akun peserta baru",
+        "description": "Membuat akun dengan role `peserta`.\n- Email dinormalkan (spasi tepi dibuang, huruf kecil), sehingga\n  `Budi@Mail.com` dan `budi@mail.com` dianggap email yang sama.\n- `konfirmasiPassword` hanya untuk validasi dan tidak disimpan.\n- Properti di luar yang tercantum ditolak (422).\n- Response tidak pernah memuat password.\n",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "examples": {
+                "valid": {
+                  "summary": "Payload valid",
+                  "value": {
+                    "nama": "Budi Santoso",
+                    "sekolah": "SMK 5 Malang",
+                    "email": "budi@mail.com",
+                    "password": "rahasia123",
+                    "konfirmasiPassword": "rahasia123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Akun berhasil dibuat",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Location": {
+                "description": "URL peserta yang baru dibuat",
+                "schema": {
+                  "type": "string",
+                  "example": "/api/v1/peserta/1"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesertaResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email sudah terdaftar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "CONFLICT",
+                    "pesan": "Email sudah terdaftar"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login dan dapatkan access token serta refresh token",
+        "description": "Pesan error SAMA untuk email yang tidak terdaftar maupun password yang salah\n(supaya penyerang tidak bisa menebak email mana yang valid).\nDibatasi 10 percobaan gagal per 15 menit per IP; login yang berhasil tidak dihitung.\n",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "examples": {
+                "peserta": {
+                  "summary": "Login peserta",
+                  "value": {
+                    "email": "budi@mail.com",
+                    "password": "rahasia123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login berhasil",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Email atau password salah",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "sukses": false,
+                  "error": {
+                    "kode": "UNAUTHORIZED",
+                    "pesan": "Email atau password salah"
+                  },
+                  "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Tukar refresh token dengan access token baru",
+        "description": "Refresh token harus masih berlaku dan masih tersimpan di server\n(belum dicabut lewat logout). Yang dikembalikan hanya access token baru;\nrefresh token tidak diganti.\n",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              },
+              "examples": {
+                "refreshToken": {
+                  "summary": "Refresh token dari hasil login",
+                  "value": {
+                    "refreshToken": "tempel-refresh-token-dari-login"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access token baru berhasil dibuat",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token kedaluwarsa, tidak valid, atau sudah dicabut",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "kedaluwarsa": {
+                    "summary": "Refresh token kedaluwarsa",
+                    "value": {
+                      "sukses": false,
+                      "error": {
+                        "kode": "TOKEN_EXPIRED",
+                        "pesan": "Token sudah kedaluwarsa"
+                      },
+                      "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                    }
+                  },
+                  "tidakValid": {
+                    "summary": "Refresh token tidak valid",
+                    "value": {
+                      "sukses": false,
+                      "error": {
+                        "kode": "INVALID_TOKEN",
+                        "pesan": "Token tidak valid"
+                      },
+                      "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                    }
+                  },
+                  "dicabut": {
+                    "summary": "Refresh token sudah dicabut (logout)",
+                    "value": {
+                      "sukses": false,
+                      "error": {
+                        "kode": "UNAUTHORIZED",
+                        "pesan": "Refresh token tidak dikenali atau sudah dicabut"
+                      },
+                      "requestId": "b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Logout dengan mencabut refresh token",
+        "description": "Menghapus refresh token dari server sehingga tidak bisa dipakai lagi di `/auth/refresh`.\nAccess token yang sudah terbit tetap berlaku sampai kedaluwarsa (maksimal 15 menit).\nToken yang tidak dikenal tetap menghasilkan 200.\n",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              },
+              "examples": {
+                "refreshToken": {
+                  "summary": "Refresh token dari hasil login",
+                  "value": {
+                    "refreshToken": "tempel-refresh-token-dari-login"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logout berhasil (data bernilai null)",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    }
+  }
+}

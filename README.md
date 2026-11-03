@@ -834,3 +834,39 @@ Semua endpoint jurnal (`/jurnal`, `/jurnal/{id}`, `/jurnal/{id}/review`, `/me/ju
 - **Beda dengan materi:** perubahan isi jurnal memakai `PUT /jurnal/{id}` (perilakunya parsial), bukan PATCH; beberapa endpoint bacaan sengaja publik; jumlah di `/stats` berupa string karena begitulah Postgres mengembalikan COUNT.
 - **`reviewerId`** saat ini selalu `null` karena server belum mengisinya.
 - **Anti-drift:** `tests/unit/docs/components.test.ts` mencocokkan batas schema dengan DTO, `tests/http/docs-endpoint.test.ts` memeriksa kelengkapan tiap endpoint, dan `tests/http/docs-audit.test.ts` memastikan setiap endpoint di `docs/endpoint-audit.md` ada di dokumentasi.
+
+[![Test](https://github.com/lindaangellina/api-magang/actions/workflows/test.yml/badge.svg)](https://github.com/lindaangellina/api-magang/actions/workflows/test.yml)
+
+<!-- ^ Baris badge di atas ditempel tepat di bawah judul "# API Magang Batch 4" -->
+
+## Teknologi
+
+Node.js, Express 5, TypeScript, PostgreSQL + TypeORM (dengan migration), JWT (access + refresh token), class-validator, Jest + Supertest, Swagger/OpenAPI 3.0.3, GitHub Actions.
+
+## Menjalankan Test
+
+```bash
+npm test
+```
+
+Mencakup unit test, HTTP test (Supertest), dan test dokumentasi (dokumen OpenAPI valid, setiap endpoint memenuhi konvensi, dan `docs/openapi.json` sinkron dengan kode).
+
+## Dokumentasi API
+
+- Swagger UI: `http://localhost:3000/api/docs/`
+- Dokumen mentah (JSON): `http://localhost:3000/api/docs.json`
+- Salinan untuk tim lain: `docs/openapi.json` (bisa diimpor ke Postman atau Insomnia).
+
+Perbarui salinan setiap kali anotasi API berubah:
+
+```bash
+npm run docs:export
+```
+
+## Keputusan Desain
+
+- **Dependency Injection:** service menerima repository lewat constructor, sehingga bisa diuji dengan mock tanpa database.
+- **Whitelist saat ubah data:** hanya field yang diizinkan yang diproses (misalnya `pesertaId` dan status review tidak bisa diubah lewat endpoint ubah jurnal), mencegah mass assignment.
+- **Migration, bukan `synchronize`:** perubahan skema tercatat, bisa diulang, dan aman untuk dijalankan di lingkungan lain.
+- **Format error seragam dengan `requestId`:** setiap error bisa dilacak ke baris log yang sama.
+- **Dokumentasi dijaga test otomatis:** batas schema dicocokkan dengan DTO dan setiap endpoint diperiksa, sehingga dokumen tidak diam-diam melenceng dari kode.
