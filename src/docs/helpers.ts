@@ -4,8 +4,10 @@
 export const ref = (nama: string) => ({ $ref: `#/components/schemas/${nama}` });
 
 // Bentuk response sukses: { sukses, pesan, data }
+// `required` WAJIB ada: tanpanya generator tipe (openapi-typescript) menganggap semua properti opsional (`data?: ...`).
 export const bungkusSukses = (data: object) => ({
   type: "object",
+  required: ["sukses", "pesan", "data"],
   properties: {
     sukses: { type: "boolean", example: true },
     pesan: { type: "string", example: "Berhasil" },
@@ -16,6 +18,7 @@ export const bungkusSukses = (data: object) => ({
 // Bentuk response daftar: { sukses, pesan, data: [...], meta }
 export const bungkusDaftar = (item: object) => ({
   type: "object",
+  required: ["sukses", "pesan", "data", "meta"],
   properties: {
     sukses: { type: "boolean", example: true },
     pesan: { type: "string", example: "Berhasil" },

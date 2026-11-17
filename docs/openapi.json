@@ -89,6 +89,14 @@
     "schemas": {
       "PaginationMeta": {
         "type": "object",
+        "required": [
+          "page",
+          "limit",
+          "total",
+          "totalPages",
+          "hasNext",
+          "hasPrev"
+        ],
         "properties": {
           "page": {
             "type": "integer",
@@ -118,6 +126,10 @@
       },
       "FieldError": {
         "type": "object",
+        "required": [
+          "field",
+          "pesan"
+        ],
         "properties": {
           "field": {
             "type": "string",
@@ -132,6 +144,10 @@
       },
       "ErrorResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "error"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -179,6 +195,16 @@
       },
       "Peserta": {
         "type": "object",
+        "required": [
+          "id",
+          "nama",
+          "sekolah",
+          "email",
+          "fase",
+          "status",
+          "role",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "integer",
@@ -396,6 +422,13 @@
       },
       "Jurnal": {
         "type": "object",
+        "required": [
+          "id",
+          "pesertaId",
+          "kegiatan",
+          "statusReview",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "integer",
@@ -554,6 +587,11 @@
       },
       "PesertaResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -570,6 +608,12 @@
       },
       "PesertaListResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data",
+          "meta"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -592,6 +636,11 @@
       },
       "JurnalResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -608,6 +657,12 @@
       },
       "JurnalListResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data",
+          "meta"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -630,6 +685,11 @@
       },
       "RefreshResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -641,6 +701,9 @@
           },
           "data": {
             "type": "object",
+            "required": [
+              "accessToken"
+            ],
             "properties": {
               "accessToken": {
                 "type": "string",
@@ -652,6 +715,11 @@
       },
       "MessageResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -670,6 +738,12 @@
       },
       "JurnalSayaResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "total",
+          "data"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -693,6 +767,11 @@
       },
       "StatsResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -704,6 +783,14 @@
           },
           "data": {
             "type": "object",
+            "required": [
+              "totalPeserta",
+              "totalJurnal",
+              "jurnalBelumDireview",
+              "rataRataJurnalPerPeserta",
+              "jurnalPerPeserta",
+              "skillTerpopuler"
+            ],
             "properties": {
               "totalPeserta": {
                 "type": "integer",
@@ -727,6 +814,10 @@
                 "description": "Hanya peserta yang punya jurnal. `totalJurnal` berupa teks karena hasil COUNT dari PostgreSQL.",
                 "items": {
                   "type": "object",
+                  "required": [
+                    "pesertaId",
+                    "totalJurnal"
+                  ],
                   "properties": {
                     "pesertaId": {
                       "type": "integer",
@@ -744,6 +835,10 @@
                 "description": "Lima skill yang paling banyak dipakai peserta. `jumlahPeserta` berupa teks karena hasil COUNT dari PostgreSQL.",
                 "items": {
                   "type": "object",
+                  "required": [
+                    "namaSkill",
+                    "jumlahPeserta"
+                  ],
                   "properties": {
                     "namaSkill": {
                       "type": "string",
@@ -762,6 +857,11 @@
       },
       "PesertaJurnalResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -773,6 +873,10 @@
           },
           "data": {
             "type": "object",
+            "required": [
+              "peserta",
+              "jurnal"
+            ],
             "properties": {
               "peserta": {
                 "type": "string",
@@ -791,6 +895,11 @@
       },
       "LoginResponse": {
         "type": "object",
+        "required": [
+          "sukses",
+          "pesan",
+          "data"
+        ],
         "properties": {
           "sukses": {
             "type": "boolean",
@@ -802,6 +911,11 @@
           },
           "data": {
             "type": "object",
+            "required": [
+              "accessToken",
+              "refreshToken",
+              "peserta"
+            ],
             "properties": {
               "accessToken": {
                 "type": "string",

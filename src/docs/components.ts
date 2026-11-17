@@ -49,6 +49,7 @@ export const components = {
   schemas: {
     PaginationMeta: {
       type: "object",
+      required: ["page", "limit", "total", "totalPages", "hasNext", "hasPrev"],
       properties: {
         page: { type: "integer", example: 1 },
         limit: { type: "integer", example: 10 },
@@ -61,6 +62,7 @@ export const components = {
 
     FieldError: {
       type: "object",
+      required: ["field", "pesan"],
       properties: {
         field: {
           type: "string", example: "email",
@@ -72,6 +74,7 @@ export const components = {
 
     ErrorResponse: {
       type: "object",
+      required: ["sukses", "error"],
       properties: {
         sukses: { type: "boolean", example: false },
         error: {
@@ -89,8 +92,10 @@ export const components = {
     },
 
     // ---------------- Peserta ----------------
+    // telepon boleh null (nullable) sehingga tidak wajib; updatedAt tidak dimasukkan agar kontrak tidak lebih ketat dari yang sudah diuji
     Peserta: {
       type: "object",
+      required: ["id", "nama", "sekolah", "email", "fase", "status", "role", "createdAt"],
       properties: {
         id: { type: "integer", readOnly: true, example: 1 },
         nama: { type: "string", example: "Budi Santoso" },
@@ -180,8 +185,11 @@ export const components = {
       },
     },
 
+    // Yang wajib hanya kolom yang SELALU ada di setiap response. hambatan, linkCommit, reviewerId,
+    // catatanMentor, dan lampiran boleh null atau tidak dikirim (mis. pada response POST), jadi tidak masuk required.
     Jurnal: {
       type: "object",
+      required: ["id", "pesertaId", "kegiatan", "statusReview", "createdAt"],
       properties: {
         id: { type: "integer", readOnly: true, example: 7 },
         pesertaId: { type: "integer", readOnly: true, example: 1 },
@@ -257,6 +265,7 @@ export const components = {
     JurnalListResponse: bungkusDaftar(ref("Jurnal")),
     RefreshResponse: bungkusSukses({
       type: "object",
+      required: ["accessToken"],
       properties: {
         accessToken: { type: "string", description: "Access token baru, berlaku 15 menit" },
       },
@@ -266,6 +275,7 @@ export const components = {
     // Jurnal milik saya memakai suksesDenganTotal: ada `total` di level atas, tanpa `meta`
     JurnalSayaResponse: {
       type: "object",
+      required: ["sukses", "pesan", "total", "data"],
       properties: {
         sukses: { type: "boolean", example: true },
         pesan: { type: "string", example: "Jurnal milik saya berhasil diambil" },
@@ -275,6 +285,7 @@ export const components = {
     },
     StatsResponse: bungkusSukses({
       type: "object",
+      required: ["totalPeserta", "totalJurnal", "jurnalBelumDireview", "rataRataJurnalPerPeserta", "jurnalPerPeserta", "skillTerpopuler"],
       properties: {
         totalPeserta: { type: "integer", example: 86 },
         totalJurnal: { type: "integer", example: 15 },
@@ -285,6 +296,7 @@ export const components = {
           description: "Hanya peserta yang punya jurnal. `totalJurnal` berupa teks karena hasil COUNT dari PostgreSQL.",
           items: {
             type: "object",
+            required: ["pesertaId", "totalJurnal"],
             properties: {
               pesertaId: { type: "integer", example: 69 },
               totalJurnal: { type: "string", example: "6" },
@@ -296,6 +308,7 @@ export const components = {
           description: "Lima skill yang paling banyak dipakai peserta. `jumlahPeserta` berupa teks karena hasil COUNT dari PostgreSQL.",
           items: {
             type: "object",
+            required: ["namaSkill", "jumlahPeserta"],
             properties: {
               namaSkill: { type: "string", example: "PostgreSQL" },
               jumlahPeserta: { type: "string", example: "2" },
@@ -306,6 +319,7 @@ export const components = {
     }),
     PesertaJurnalResponse: bungkusSukses({
       type: "object",
+      required: ["peserta", "jurnal"],
       properties: {
         peserta: { type: "string", description: "Nama peserta pemilik jurnal", example: "Budi Santoso" },
         jurnal: { type: "array", items: ref("Jurnal") },
@@ -313,6 +327,7 @@ export const components = {
     }),
     LoginResponse: bungkusSukses({
       type: "object",
+      required: ["accessToken", "refreshToken", "peserta"],
       properties: {
         accessToken: { type: "string", description: "Berlaku 15 menit" },
         refreshToken: { type: "string", description: "Berlaku 7 hari, tukarkan di /auth/refresh" },
