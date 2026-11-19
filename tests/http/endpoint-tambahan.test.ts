@@ -208,13 +208,14 @@ describe("/me", () => {
     expect(JSON.stringify(res.body)).not.toContain("HASH_RAHASIA");
   });
 
-  it("GET /me/jurnal: 200 dengan total", async () => {
-    jest.mocked(jurnalService.getJurnalSaya).mockResolvedValue([{ id: 1 }, { id: 2 }] as never);
+  it("GET /me/jurnal: 200 dengan meta, dan pesertaId diambil dari token", async () => {
+    jest.mocked(jurnalService.daftarJurnal).mockResolvedValue({ data: [{ id: 1 }, { id: 2 }], total: 2 } as never);
 
     const res = await request(app).get("/api/v1/me/jurnal").set("Authorization", bearer(tokenPeserta(7)));
 
     expect(res.status).toBe(200);
-    expect(jurnalService.getJurnalSaya).toHaveBeenCalledWith(7);
+    expect(res.body.meta).toMatchObject({ page: 1, limit: 10, total: 2 });
+    expect(jurnalService.daftarJurnal).toHaveBeenCalledWith(expect.anything(), { pesertaId: 7 });
   });
 });
 

@@ -29,7 +29,6 @@ describe("Dokumen OpenAPI: required", () => {
     Peserta: ["id", "nama", "sekolah", "email", "fase", "status", "role", "createdAt"],
     Jurnal: ["id", "pesertaId", "kegiatan", "statusReview", "createdAt"],
     Lampiran: ["url"],
-    JurnalSayaResponse: ["sukses", "pesan", "total", "data"],
   };
 
   it.each(Object.entries(WAJIB))("%s mewajibkan properti yang selalu ada", (nama, daftar) => {

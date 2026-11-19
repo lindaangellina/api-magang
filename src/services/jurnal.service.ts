@@ -61,10 +61,6 @@ export class JurnalService {
     return { peserta: peserta.nama, jurnal: peserta.jurnalList };
   }
 
-  async getJurnalSaya(pesertaId: number): Promise<JurnalHarian[]> {
-    return this.jurnalRepo.find({ where: { pesertaId } });
-  }
-
   // pesertaId datang dari token (bukan dari body), statusReview selalu "belum"
   async buatJurnal(pesertaId: number, data: CreateJurnalDto): Promise<JurnalHarian> {
     const baru = this.jurnalRepo.create({

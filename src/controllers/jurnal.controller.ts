@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
-import { sukses, suksesDenganTotal, suksesDenganMeta, dibuat } from "../utils/response";
+import { sukses, suksesDenganMeta, dibuat } from "../utils/response";
 import { jurnalService } from "../services";
 import { buatMeta } from "../utils/pagination";
 import { StatusReview } from "../types";
@@ -11,6 +11,7 @@ import { IdParamDto } from "../dto/common.dto";
 import {
   CreateJurnalDto,
   ListJurnalQueryDto,
+  ListJurnalSayaQueryDto,
   ReviewJurnalDto,
   UpdateJurnalDto,
 } from "../dto/jurnal.dto";
@@ -86,6 +87,13 @@ export const hapusJurnal = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getJurnalSaya = asyncHandler(async (req: Request, res: Response) => {
-  const hasil = await jurnalService.getJurnalSaya(req.user!.id);
-  suksesDenganTotal(res, serialisasi(JurnalResponseDto, hasil), "Jurnal milik saya berhasil diambil");
+  const query = ambilDto<ListJurnalSayaQueryDto>(req, "query");
+  // pesertaId dari token, bukan dari query: pengguna tidak bisa melihat jurnal peserta lain lewat endpoint ini
+  const { data, total } = await jurnalService.daftarJurnal(query, { pesertaId: req.user!.id });
+  suksesDenganMeta(
+    res,
+    serialisasi(JurnalResponseDto, data),
+    buatMeta(query.page, query.limit, total),
+    "Jurnal milik saya berhasil diambil"
+  );
 });

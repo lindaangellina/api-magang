@@ -3,6 +3,7 @@ import { pesertaController, jurnalController } from "../controllers";
 import { authGuard } from "../middlewares/auth.middleware";
 import { validasi } from "../middlewares/validasi.middleware";
 import { UpdateProfilDto } from "../dto/peserta.dto";
+import { ListJurnalSayaQueryDto } from "../dto/jurnal.dto";
 
 const router = Router();
 
@@ -76,7 +77,17 @@ router.patch("/", authGuard, validasi(UpdateProfilDto), pesertaController.ubahPr
  *   get:
  *     tags: [Profil]
  *     summary: Daftar jurnal milik sendiri
- *     description: Seluruh jurnal milik pengguna yang sedang login (tanpa pagination; ada field `total`).
+ *     description: |
+ *       Jurnal milik pengguna yang sedang login, dengan pagination (`meta`). Pemilik diambil dari token,
+ *       jadi tidak ada parameter `pesertaId`; parameter yang tidak dikenal diabaikan.
+ *     parameters:
+ *       - $ref: '#/components/parameters/Page'
+ *       - $ref: '#/components/parameters/Limit'
+ *       - $ref: '#/components/parameters/Order'
+ *       - in: query
+ *         name: sortBy
+ *         description: Kolom pengurutan
+ *         schema: { type: string, enum: [createdAt, statusReview], default: createdAt }
  *     responses:
  *       '200':
  *         description: Jurnal milik saya
@@ -86,10 +97,12 @@ router.patch("/", authGuard, validasi(UpdateProfilDto), pesertaController.ubahPr
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/JurnalSayaResponse'
+ *               $ref: '#/components/schemas/JurnalListResponse'
  *       '401':
  *         $ref: '#/components/responses/Unauthorized'
+ *       '422':
+ *         $ref: '#/components/responses/ValidationError'
  */
-router.get("/jurnal", authGuard, jurnalController.getJurnalSaya);
+router.get("/jurnal", authGuard, validasi(ListJurnalSayaQueryDto, "query"), jurnalController.getJurnalSaya);
 
 export default router;

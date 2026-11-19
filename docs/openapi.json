@@ -736,35 +736,6 @@
           }
         }
       },
-      "JurnalSayaResponse": {
-        "type": "object",
-        "required": [
-          "sukses",
-          "pesan",
-          "total",
-          "data"
-        ],
-        "properties": {
-          "sukses": {
-            "type": "boolean",
-            "example": true
-          },
-          "pesan": {
-            "type": "string",
-            "example": "Jurnal milik saya berhasil diambil"
-          },
-          "total": {
-            "type": "integer",
-            "example": 3
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Jurnal"
-            }
-          }
-        }
-      },
       "StatsResponse": {
         "type": "object",
         "required": [
@@ -1705,7 +1676,31 @@
           "Profil"
         ],
         "summary": "Daftar jurnal milik sendiri",
-        "description": "Seluruh jurnal milik pengguna yang sedang login (tanpa pagination; ada field `total`).",
+        "description": "Jurnal milik pengguna yang sedang login, dengan pagination (`meta`). Pemilik diambil dari token,\njadi tidak ada parameter `pesertaId`; parameter yang tidak dikenal diabaikan.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Order"
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "description": "Kolom pengurutan",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "statusReview"
+              ],
+              "default": "createdAt"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Jurnal milik saya",
@@ -1717,13 +1712,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JurnalSayaResponse"
+                  "$ref": "#/components/schemas/JurnalListResponse"
                 }
               }
             }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       }

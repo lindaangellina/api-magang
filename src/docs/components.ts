@@ -272,17 +272,6 @@ export const components = {
     }),
     // Response sukses tanpa data (mis. logout): data bernilai null
     MessageResponse: bungkusSukses({ type: "object", nullable: true, example: null }),
-    // Jurnal milik saya memakai suksesDenganTotal: ada `total` di level atas, tanpa `meta`
-    JurnalSayaResponse: {
-      type: "object",
-      required: ["sukses", "pesan", "total", "data"],
-      properties: {
-        sukses: { type: "boolean", example: true },
-        pesan: { type: "string", example: "Jurnal milik saya berhasil diambil" },
-        total: { type: "integer", example: 3 },
-        data: { type: "array", items: ref("Jurnal") },
-      },
-    },
     StatsResponse: bungkusSukses({
       type: "object",
       required: ["totalPeserta", "totalJurnal", "jurnalBelumDireview", "rataRataJurnalPerPeserta", "jurnalPerPeserta", "skillTerpopuler"],

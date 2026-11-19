@@ -142,3 +142,17 @@ export class ListJurnalQueryDto extends ListQueryDto {
   @IsBoolean({ message: "belumDireview harus true atau false" })
   belumDireview?: boolean;
 }
+
+// ======================================================================
+// Query daftar jurnal milik sendiri (GET /me/jurnal, Minggu 19 Kamis)
+// Hanya page, limit, order, sortBy: pesertaId SENGAJA tidak ada karena diambil dari token.
+// Parameter lain (mis. pesertaId=3) dibuang oleh whitelist (untuk query tidak ditolak, hanya dibuang),
+// sehingga tidak pernah sampai ke service.
+// ======================================================================
+export class ListJurnalSayaQueryDto extends ListQueryDto {
+  @IsOptional()
+  @IsIn(SORT_JURNAL, {
+    message: `sortBy harus salah satu dari: ${SORT_JURNAL.join(", ")}`,
+  })
+  sortBy: (typeof SORT_JURNAL)[number] = "createdAt";
+}

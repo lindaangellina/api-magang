@@ -14,7 +14,6 @@ export function buatMockServices() {
       daftarJurnal: jest.fn(),
       getJurnalById: jest.fn(),
       getJurnalByPeserta: jest.fn(),
-      getJurnalSaya: jest.fn(),
       buatJurnal: jest.fn(),
       updateJurnal: jest.fn(),
       updateStatusReview: jest.fn(),

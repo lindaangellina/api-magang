@@ -1,6 +1,7 @@
 import {
   CreateJurnalDto,
   ListJurnalQueryDto,
+  ListJurnalSayaQueryDto,
   ReviewJurnalDto,
   UpdateJurnalDto,
 } from "../../../src/dto/jurnal.dto";
@@ -175,5 +176,32 @@ describe("ListJurnalQueryDto", () => {
   it("belumDireview=true bernilai boolean true (bukan string)", async () => {
     const q = await validasiDto(ListJurnalQueryDto, { belumDireview: "true" }, "query");
     expect(q.belumDireview).toBe(true);
+  });
+});
+
+describe("ListJurnalSayaQueryDto (GET /me/jurnal)", () => {
+  it.each<KasusValid>([
+    ["tanpa parameter memakai nilai bawaan", {}, { page: 1, limit: 10, order: "DESC", sortBy: "createdAt" }],
+    ["page dan limit sebagai string dari URL", { page: "2", limit: "5" }, { page: 2, limit: 5 }],
+    ["sortBy dan order", { sortBy: "statusReview", order: "asc" }, { sortBy: "statusReview", order: "ASC" }],
+  ])("menerima: %s", async (_judul, query, diharapkan) => {
+    const hasil = await validasiDto(ListJurnalSayaQueryDto, query, "query");
+    expect(hasil).toMatchObject(diharapkan);
+  });
+
+  it.each<KasusGagal>([
+    ["page nol", { page: "0" }, "page"],
+    ["page bukan angka", { page: "abc" }, "page"],
+    ["limit lebih dari 100", { limit: "101" }, "limit"],
+    ["sortBy di luar whitelist", { sortBy: "password" }, "sortBy"],
+    ["order tidak dikenal", { order: "naik" }, "order"],
+  ])("menolak: %s", async (_judul, query, fieldDiharapkan) => {
+    const gagal = await fieldYangGagal(validasiDto(ListJurnalSayaQueryDto, query, "query"));
+    expect(gagal).toContain(fieldDiharapkan);
+  });
+
+  it("pesertaId dibuang (bukan parameter yang diizinkan, harus selalu dari token)", async () => {
+    const hasil = await validasiDto(ListJurnalSayaQueryDto, { pesertaId: "5" }, "query");
+    expect(hasil).not.toHaveProperty("pesertaId");
   });
 });
