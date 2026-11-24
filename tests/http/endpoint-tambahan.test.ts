@@ -242,22 +242,45 @@ describe("/jurnal", () => {
     expect(jurnalService.buatJurnal).not.toHaveBeenCalled();
   });
 
+  it("GET /jurnal/:id tanpa token: 401 dan service tidak dipanggil", async () => {
+    const res = await request(app).get("/api/v1/jurnal/1");
+
+    expect(res.status).toBe(401);
+    expect(jurnalService.getJurnalById).not.toHaveBeenCalled();
+  });
+
+  it("GET /jurnal/:id dengan id tidak valid: 422 (setelah lolos autentikasi)", async () => {
+    const res = await request(app).get("/api/v1/jurnal/abc").set("Authorization", bearer(tokenPeserta(7)));
+
+    expect(res.status).toBe(422);
+    expect(jurnalService.getJurnalById).not.toHaveBeenCalled();
+  });
+
   it("GET /jurnal/:id yang tidak ada: 404 NOT_FOUND", async () => {
     jest.mocked(jurnalService.getJurnalById).mockRejectedValue(new NotFoundError("Jurnal"));
 
-    const res = await request(app).get("/api/v1/jurnal/999");
+    const res = await request(app).get("/api/v1/jurnal/999").set("Authorization", bearer(tokenPeserta(7)));
 
     expect(res.status).toBe(404);
     expect(res.body.error.kode).toBe("NOT_FOUND");
   });
 
-  it("GET /jurnal/:id sukses: 200", async () => {
+  it("GET /jurnal/:id milik orang lain: 403 FORBIDDEN", async () => {
+    jest.mocked(jurnalService.getJurnalById).mockRejectedValue(new ForbiddenError("Kamu tidak berhak melihat jurnal ini"));
+
+    const res = await request(app).get("/api/v1/jurnal/1").set("Authorization", bearer(tokenPeserta(7)));
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.kode).toBe("FORBIDDEN");
+  });
+
+  it("GET /jurnal/:id sukses: 200 dan service menerima id, userId, role dari token (bukan dari klien)", async () => {
     jest.mocked(jurnalService.getJurnalById).mockResolvedValue({ id: 1, kegiatan: "Belajar test HTTP" } as never);
 
-    const res = await request(app).get("/api/v1/jurnal/1");
+    const res = await request(app).get("/api/v1/jurnal/1").set("Authorization", bearer(tokenPeserta(7)));
 
     expect(res.status).toBe(200);
-    expect(jurnalService.getJurnalById).toHaveBeenCalledWith(1);
+    expect(jurnalService.getJurnalById).toHaveBeenCalledWith(1, 7, "peserta");
   });
 
   it("PUT /jurnal/:id sukses: 200 dan service menerima id, userId, role, data", async () => {

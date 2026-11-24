@@ -175,7 +175,7 @@ async function main(): Promise<void> {
   cek("2 lampiran valid -> 201 dan tersimpan", h.status === 201 && Array.isArray(h.body.data.lampiran) && h.body.data.lampiran.length === 2, h);
   const idDenganLampiran: number = h.body.data?.id;
 
-  h = await panggil("GET", `/jurnal/${idDenganLampiran}`);
+  h = await panggil("GET", `/jurnal/${idDenganLampiran}`, tokenA); // sekarang wajib login (pemilik)
   cek("GET jurnal memuat lampiran dan catatanMentor", h.status === 200 && h.body.data.lampiran?.length === 2 && "catatanMentor" in h.body.data, h);
   tanpaPassword("GET /jurnal/:id", h);
 

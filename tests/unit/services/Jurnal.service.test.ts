@@ -140,7 +140,25 @@ describe("JurnalService", () => {
     it("getJurnalById melempar NotFoundError jika tidak ada", async () => {
       jurnalRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(service.getJurnalById(404)).rejects.toThrow(NotFoundError);
+      await expect(service.getJurnalById(404, 7, "peserta")).rejects.toThrow(NotFoundError);
+    });
+
+    it("getJurnalById: pemilik boleh membaca jurnalnya sendiri", async () => {
+      jurnalRepo.findOneBy.mockResolvedValue(jurnalMilik7());
+
+      await expect(service.getJurnalById(10, 7, "peserta")).resolves.toEqual(jurnalMilik7());
+    });
+
+    it("getJurnalById: peserta lain ditolak dengan ForbiddenError", async () => {
+      jurnalRepo.findOneBy.mockResolvedValue(jurnalMilik7());
+
+      await expect(service.getJurnalById(10, 8, "peserta")).rejects.toThrow(ForbiddenError);
+    });
+
+    it("getJurnalById: mentor boleh membaca jurnal milik siapa pun", async () => {
+      jurnalRepo.findOneBy.mockResolvedValue(jurnalMilik7());
+
+      await expect(service.getJurnalById(10, 99, "mentor")).resolves.toEqual(jurnalMilik7());
     });
 
     it("getJurnalByPeserta melempar NotFoundError jika pesertanya tidak ada", async () => {

@@ -29,7 +29,7 @@ const ENDPOINT: [string, string, boolean, string[]][] = [
   ["get", "/me/jurnal", false, ["200", "401", "422"]],
   ["get", "/jurnal", false, ["200", "401", "403", "422"]],
   ["post", "/jurnal", false, ["201", "401", "422"]],
-  ["get", "/jurnal/{id}", true, ["200", "404", "422"]],
+  ["get", "/jurnal/{id}", false, ["200", "401", "403", "404", "422"]],
   ["put", "/jurnal/{id}", false, ["200", "401", "403", "404", "422"]],
   ["patch", "/jurnal/{id}/review", false, ["200", "401", "403", "404", "422"]],
   ["delete", "/jurnal/{id}", false, ["204", "401", "403", "404", "422"]],

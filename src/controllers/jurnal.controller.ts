@@ -50,7 +50,7 @@ export const getSemuaJurnal = asyncHandler(async (req: Request, res: Response) =
 
 export const getJurnalById = asyncHandler(async (req: Request, res: Response) => {
   const { id } = ambilDto<IdParamDto>(req, "params");
-  const jurnal = await jurnalService.getJurnalById(id);
+  const jurnal = await jurnalService.getJurnalById(id, req.user!.id, req.user!.role);
   sukses(res, serialisasi(JurnalResponseDto, jurnal), "Detail jurnal berhasil diambil");
 });
 

@@ -44,9 +44,14 @@ export class JurnalService {
     return { data, total };
   }
 
-  async getJurnalById(id: number): Promise<JurnalHarian> {
+  // Aturan bisnis (lapis service): hanya pemilik atau mentor yang boleh membaca satu jurnal
+  async getJurnalById(id: number, userId: number, role: "peserta" | "mentor"): Promise<JurnalHarian> {
     const jurnal = await this.jurnalRepo.findOneBy({ id });
     if (!jurnal) throw new NotFoundError("Jurnal");
+
+    if (role !== "mentor" && jurnal.pesertaId !== userId) {
+      throw new ForbiddenError("Kamu tidak berhak melihat jurnal ini");
+    }
     return jurnal;
   }
 

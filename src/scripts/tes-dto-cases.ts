@@ -369,8 +369,9 @@ async function main(): Promise<void> {
     });
   }
 
+  // GET /jurnal/:id wajib login, jadi semua kasus memakai token A (endpoint publik mengabaikannya)
   const ip = (label: string, path: string, status: number, field?: string): Kasus => ({
-    label, metode: "GET", path, status, field,
+    label, metode: "GET", path, status, field, token: A.token,
   });
   grup.push({
     dto: "IdParamDto",

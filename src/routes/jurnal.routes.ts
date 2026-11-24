@@ -87,8 +87,9 @@ router.get(
  *   get:
  *     tags: [Jurnal]
  *     summary: Detail satu jurnal
- *     description: Endpoint ini saat ini **publik** (tanpa login), sesuai kode di `jurnal.routes.ts`.
- *     security: []
+ *     description: |
+ *       Wajib login. Hanya pemilik jurnal atau mentor yang boleh membaca; peserta lain mendapat 403.
+ *       Jurnal berisi kegiatan, hambatan, dan link commit, jadi tidak boleh terbuka untuk siapa pun.
  *     parameters:
  *       - $ref: '#/components/parameters/IdPath'
  *     responses:
@@ -101,6 +102,20 @@ router.get(
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/JurnalResponse'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '403':
+ *         description: Jurnal ini milik peserta lain
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               sukses: false
+ *               error:
+ *                 kode: FORBIDDEN
+ *                 pesan: Kamu tidak berhak melihat jurnal ini
+ *               requestId: b7a1c9e2-4f6d-4a9b-8d3e-1c2f5a7e9b10
  *       '404':
  *         description: Jurnal tidak ditemukan
  *         content:
@@ -116,7 +131,7 @@ router.get(
  *       '422':
  *         $ref: '#/components/responses/ValidationError'
  */
-router.get("/:id", validasi(IdParamDto, "params"), jurnalController.getJurnalById);
+router.get("/:id", authGuard, validasi(IdParamDto, "params"), jurnalController.getJurnalById);
 
 /**
  * @openapi

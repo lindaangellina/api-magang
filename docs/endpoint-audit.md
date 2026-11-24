@@ -108,7 +108,8 @@ Validasi manual lama (`validasiPeserta`, `validasiUbahProfil`, `validasiJurnal`,
 |---|---|---|
 | POST /peserta | Publik dan membuat akun tanpa password (tidak bisa dipakai login). Jalur pendaftaran yang benar adalah `/auth/register`. Sejak Minggu 14 inputnya divalidasi `CreatePesertaDto` | Tetap publik, perlu keputusan mentor |
 | GET /peserta, GET /peserta/:id | Publik, response memuat email dan telepon seluruh peserta | Belum diubah, perlu keputusan mentor |
-| GET /jurnal/:id, GET /peserta/:id/jurnal | Publik, isi jurnal (kegiatan, hambatan, link commit) milik siapa pun bisa dibaca tanpa login | Belum diubah, perlu keputusan mentor |
+| GET /jurnal/:id | Publik, isi jurnal (kegiatan, hambatan, link commit) milik siapa pun bisa dibaca tanpa login | Selesai Minggu 20: wajib login, hanya pemilik atau mentor (peserta lain 403) |
+| GET /peserta/:id/jurnal | Publik, isi jurnal milik siapa pun bisa dibaca tanpa login | Belum diubah, perlu keputusan mentor |
 | PATCH /jurnal/:id/review | Nilai `statusReview` tidak divalidasi di middleware, nilai salah jadi 400 dari database | Selesai Minggu 14: `ReviewJurnalDto`, nilai salah 422 |
 | Semua route dengan `:id` | Parameter `:id` yang bukan angka tidak divalidasi dan diteruskan ke database | Selesai Minggu 14: `IdParamDto`, `/peserta/abc` dan id di luar batas integer menjadi 422 |
 | PUT /jurnal/:id | Memakai PUT sementara endpoint peserta memakai PATCH. Sejak Minggu 14 semua field opsional (minimal satu), jadi perilakunya mirip PATCH | Dibiarkan |

@@ -12,7 +12,7 @@ import {
   seedSkillDanRelasi,
 } from "../../src/services/jurnal-relasi.service";
 import { bersihkanDatabase } from "../helpers/db";
-import { bearer, tokenMentor } from "../helpers/token";
+import { bearer, tokenMentor, tokenPeserta } from "../helpers/token";
 import { buatJurnalLewatApi, buatPesertaLewatApi, tandaiSudahDireview } from "../helpers/seed";
 
 beforeAll(async () => {
@@ -210,11 +210,19 @@ describe("GET /jurnal dengan filter (jurnal.service.daftarJurnal)", () => {
     expect(masaDepan.body.meta.total).toBe(0);
   });
 
-  it("GET /jurnal/:id: 200 untuk jurnal yang ada, 404 untuk yang tidak ada", async () => {
+  it("GET /jurnal/:id: pemilik dan mentor 200, peserta lain 403, tidak ada 404, tanpa login 401", async () => {
     const p1 = await buatPesertaLewatApi(1);
+    const p2 = await buatPesertaLewatApi(2);
     const id = await buatJurnalLewatApi(p1, "Jurnal untuk dicari berdasarkan id");
+    const ambil = (path: string, token?: string) => {
+      const req = request(app).get(path);
+      return token ? req.set("Authorization", bearer(token)) : req;
+    };
 
-    expect((await request(app).get(`/api/v1/jurnal/${id}`)).status).toBe(200);
-    expect((await request(app).get("/api/v1/jurnal/9999")).status).toBe(404);
+    expect((await ambil(`/api/v1/jurnal/${id}`, tokenPeserta(p1))).status).toBe(200);
+    expect((await ambil(`/api/v1/jurnal/${id}`, tokenMentor())).status).toBe(200);
+    expect((await ambil(`/api/v1/jurnal/${id}`, tokenPeserta(p2))).status).toBe(403);
+    expect((await ambil("/api/v1/jurnal/9999", tokenPeserta(p1))).status).toBe(404);
+    expect((await ambil(`/api/v1/jurnal/${id}`)).status).toBe(401);
   });
 });
